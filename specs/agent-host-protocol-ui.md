@@ -27,6 +27,7 @@ The VS Code Agents View represents Microsoft's architecture for decoupling agent
 
 ### 2.1 Host Connection & Multi-Host Management
 - **Connection Configuration:** Users can add multiple remote agent hosts via WebSocket URL (including authentication tokens, e.g. `ws://127.0.0.1:63877?tkn=...`).
+- **Browser Password Manager Integration:** Supports saving the WebSocket Host URL as a Username and the authentication token as a Password in Chrome Password Manager, Apple Keychain, and W3C `navigator.credentials` for seamless 1-click autofill and biometric login.
 - **Connection Lifecycle & Status:** Real-time visual status badge (Connecting, Connected, Disconnected, Reconnecting, Protocol Handshake Error).
 - **Protocol Negotiation:** Handles protocol version negotiation (0.9.x through 1.x) during `initialize`.
 - **State Reconnect & Replay:** Automatic reconnection using `reconnect` RPC with action sequence replay or state snapshot recovery (`AhpStateMirror`).
@@ -335,24 +336,102 @@ Because AI agents and tool outputs process arbitrary code, command output, and m
 
 ### 6.5 Browser Password Manager & Credential Management API Integration
 
-Because AHP daemons authenticate connections using connection tokens (e.g., `ws://127.0.0.1:63877?tkn=...`), modern browsers (Chrome, Edge, Safari, Firefox) and password managers (1Password, Bitwarden, Apple Keychain) naturally interpret the Host WebSocket URL as a **Username** and the connection token as a **Password**.
+#### 6.5.1 Motivation & Rationale
+When connecting to local or remote AHP daemons (such as `pi-agent-host-protocol`), hosts generate ephemeral authentication tokens for authorization (e.g., `ws://127.0.0.1:63877?tkn=abc123xyz`). Local ports and tokens frequently rotate across restarts and sessions.
 
-The specification formalizes and embraces this pattern:
+Modern browser engines (Google Chrome, Microsoft Edge, Safari, Firefox) and system password managers (Apple Keychain, Windows Credential Manager, 1Password, Bitwarden) use intelligent form heuristics to detect login workflows. When presented with a connection endpoint and an authentication token, these tools naturally attempt to save them as:
+- **Username / Account ID:** The WebSocket Host Endpoint (e.g., `ws://127.0.0.1:63877` or `wss://agent.internal:8443`).
+- **Password / Credential:** The Host Authentication Token (`tkn=...`).
 
-1. **Semantic HTML Credential Attributes:**
-   - The Host Configuration form is structured with semantic identity attributes:
-     - Host URL/Identifier: `<input type="text" name="username" autocomplete="username" ... />`
-     - Host Token: `<input type="password" name="password" autocomplete="current-password" ... />`
-   - This enables browser password managers to securely capture, store, and autofill agent host endpoints and tokens inside the operating system's native encrypted keychain, protected by device biometrics (Touch ID, Windows Hello, Face ID).
-   - Users can seamlessly switch between multiple host environments without manually looking up random port numbers or token strings.
+Rather than treating this as an unexpected quirk, this specification formalizes and elevates browser password manager support as a first-class, secure credential persistence mechanism.
 
-2. **Credential Management API (`navigator.credentials`):**
-   - In supporting browsers, the application can interface with the Web Credential Management API:
-     - After verifying a successful connection, optionally invoke `navigator.credentials.store(new PasswordCredential({ id: host.url, password: host.token, name: host.name }))`.
-     - When opening the connection dialog, query `navigator.credentials.get({ password: true })` to offer auto-fill candidates.
+#### 6.5.2 Security Benefits of Browser Password Manager Storage
+1. **OS-Level Hardware Keychain:** Browsers and password managers store credentials in OS-native hardware security modules (Apple Keychain via Secure Enclave, Windows Hello via TPM/DPAPI, Linux Secret Service).
+2. **Biometric Protection:** Accessing autofill credentials requires biometric verification (Touch ID, Face ID, Windows Hello) or master vault unlocking.
+3. **Cross-Device & Profile Sync:** Users logged into Chrome or Keychain can synchronize their remote agent hosts seamlessly across workstations.
+4. **Elimination of Plaintext Scratchpads:** Eliminates the risky developer habit of pasting connection tokens into plaintext shell histories, text files, or chat windows.
+5. **Origin Isolation:** Web origin boundaries ensure that credentials saved for `agent-host-protocol-ui` are isolated to the UI's origin (e.g. `http://localhost:5173` or `https://agents.internal`) and cannot be accessed by external sites.
 
-3. **Dual-Tier Security Coexistence:**
-   - Users can rely on their browser's native keychain (via password manager autofill) or the application's built-in Web Crypto AES-GCM-256 vault (ephemeral or passphrase-protected). Both mechanisms guarantee that connection tokens are never exposed in unencrypted plaintext on disk.
+#### 6.5.3 Semantic Form Architecture & DOM Heuristics
+To ensure universal compatibility across Chrome, Safari, Firefox, and third-party password manager extensions (1Password, Bitwarden, LastPass), the Host Configuration dialog adheres to standard web credential form guidelines:
+
+1. **Explicit `<form>` Container:**
+   - The connection modal encloses inputs in a standard `<form>` tag with `method="post"` and `action="javascript:void(0);"`.
+   - An explicit `<button type="submit">` triggers the DOM submit event, which password managers monitor to prompt the "Save Password / Update Password" infobar.
+2. **Canonical Host Endpoint (`name="username"`, `autocomplete="username"`):**
+   - Identifier field tagged with `name="username"`, `id="ahp-host-url"`, `type="text"`, and `autocomplete="username"`.
+   - Represents the canonical target WebSocket URL (e.g., `ws://127.0.0.1:63877`).
+3. **Authentication Token (`name="password"`, `autocomplete="current-password"`):**
+   - Secret credential tagged with `name="password"`, `id="ahp-host-token"`, `type="password"`, and `autocomplete="current-password"`.
+   - Masked with an optional reveal/mask toggle button.
+4. **Human-Readable Host Name (`name="name"`):**
+   - User-defined label (e.g., "Local Pi Agent") to distinguish multiple hosts.
+
+#### 6.5.4 Smart URL Decomposition & Query Parameter Extraction
+In practice, agent host daemons output full connection URLs containing query parameters:
+```text
+ws://127.0.0.1:63877?tkn=9f4a180c4b2e...
+```
+If a user pastes this full string directly into the Host URL field, naive form handling would treat the entire string (including the token) as the username, causing password managers to save a dirty, unmaintainable entry where the username changes on every token refresh.
+
+**Specification Requirement:**
+The UI MUST implement intelligent URL decomposition:
+1. When user input in the Host URL field contains query parameters `tkn` or `token` (e.g., `ws://127.0.0.1:63877?tkn=abc123xyz`):
+   - The query parameter value (`abc123xyz`) is automatically stripped from the URL and populated into the **Password (Token)** field.
+   - The stripped, clean URL (`ws://127.0.0.1:63877`) is populated into the **Username (Host URL)** field.
+2. When the user submits, Chrome and password managers receive the clean host endpoint as the username and the extracted token as the password.
+3. If the daemon restarts with a new token on the same port, Chrome recognizes the username (`ws://127.0.0.1:63877`) and prompts: *"Update password for ws://127.0.0.1:63877?"*, updating the token in-place without creating duplicate entries.
+
+#### 6.5.5 W3C Credential Management API Integration (`navigator.credentials`)
+In supporting modern browsers (Chrome, Edge, Opera), the UI integrates programmatically with the W3C Credential Management API to provide high-fidelity credential storage and retrieval:
+
+1. **Saving Credentials on Successful Connection (`navigator.credentials.store`):**
+   - After a WebSocket handshake (`AhpClient.initialize`) succeeds and verifies the token's validity, the application constructs a `PasswordCredential`:
+     ```typescript
+     if (typeof window !== 'undefined' && 'PasswordCredential' in window && navigator.credentials && host.token) {
+       const cred = new PasswordCredential({
+         id: host.url,          // Canonical WebSocket endpoint (e.g., "ws://127.0.0.1:63877")
+         password: host.token,  // Authentication token
+         name: host.name || host.url,
+       });
+       await navigator.credentials.store(cred);
+     }
+     ```
+   - Only successfully authenticated credentials are submitted to the credential store, preventing stale or invalid tokens from polluting the user's password vault.
+
+2. **Proactive Credential Retrieval (`navigator.credentials.get`):**
+   - When the Host Modal opens or when the application launches without an active session, the UI queries `navigator.credentials.get({ password: true, mediation: 'optional' })`.
+   - If a saved `PasswordCredential` is returned, the dialog pre-fills the WebSocket URL and token, or displays a quick "Connect as [Host URL]" one-click button.
+
+3. **Preventing Silent Auto-Access (`navigator.credentials.preventSilentAccess`):**
+   - When the user explicitly disconnects a host or chooses "Forget Host Credentials", the application invokes `navigator.credentials.preventSilentAccess()`. This ensures the browser will not silently auto-fill and auto-connect without explicit user interaction in future sessions.
+
+#### 6.5.6 Multi-Tier Credential & Privacy Architecture
+The password manager integration forms Tier 1 of the application's multi-tier security model:
+
+```mermaid
+flowchart TD
+    subgraph Tier1 ["Tier 1: OS Keychain / Browser Password Manager"]
+        BPM["Chrome / Edge / Safari / 1Password"]
+        BPM -->|"Autofill username = Host URL, password = Token"| FORM["Host Configuration Form"]
+    end
+
+    subgraph Tier2 ["Tier 2: In-Memory Runtime"]
+        FORM -->|"Direct Connection Handshake"| MEM["In-Memory AHP Client State"]
+        MEM -->|"Zero Disk Persistence"| WS["Secure WebSocket Connection"]
+    end
+
+    subgraph Tier3 ["Tier 3: Encrypted Web Crypto Vault"]
+        FORM -->|"Optional Persistence"| VAULT["Web Crypto AES-GCM-256 Vault"]
+        VAULT -->|"PBKDF2 Derived Key"| LS["Encrypted LocalStorage Registry"]
+    end
+```
+
+- **Tier 1 (Browser Password Manager & OS Keychain):** Hardware-backed encryption (Touch ID / TPM), handled by the browser. Ideal for fast local development and seamless host switching.
+- **Tier 2 (In-Memory Runtime):** In Ephemeral / Memory-Only modes, credentials live only in JavaScript memory and are wiped when the tab closes.
+- **Tier 3 (Web Crypto AES-GCM-256 Vault):** For offline multi-host catalogs and session caches, data stored in `localStorage` is encrypted with an AES-GCM-256 key derived via PBKDF2.
+
+Users have complete autonomy to choose their preferred security tier or use them synergistically.
 
 ---
 

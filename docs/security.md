@@ -134,7 +134,7 @@ When agents request sensitive system operations:
 
 ## 7. Browser Password Manager & Credential Management API
 
-Because AHP daemons authenticate connections using connection tokens (e.g. `ws://127.0.0.1:63877?tkn=...`), browser password managers (Chrome Password Manager, Firefox, Safari/Keychain, 1Password, Bitwarden) naturally treat the host configuration dialog as a credential pair:
+Because AHP daemons authenticate connections using connection tokens (e.g. `ws://127.0.0.1:63877?tkn=...`), browser password managers (Chrome Password Manager, Firefox, Safari/Keychain, 1Password, Bitwarden) naturally treat the host configuration dialog as an authentication pair:
 
 - **Username / Host Identity:** The WebSocket URL (or host identifier) via `<input type="text" name="username" autocomplete="username" />`.
 - **Password / Connection Token:** The host authentication token via `<input type="password" name="password" autocomplete="current-password" />`.
@@ -143,5 +143,7 @@ Because AHP daemons authenticate connections using connection tokens (e.g. `ws:/
 1. **OS-Level Keychain Storage:** Browser password managers store tokens in the operating system's hardware-backed encrypted keychain (e.g., Apple Keychain with Secure Enclave, Windows Hello / DPAPI), requiring biometric (Touch ID / Face ID) or master password authentication to access.
 2. **Eliminates Plaintext Scraping:** Users do not need to store tokens in plaintext shell history, terminal logs, or unencrypted text files.
 3. **Seamless Multi-Host Autofill:** Returning to a saved host automatically suggests and fills the connection URL and token with zero manual interaction.
-4. **Credential Management API (`navigator.credentials`):** Where supported, the UI integrates with `navigator.credentials.store` and `navigator.credentials.get` to coordinate with the browser's native credential store.
+4. **Smart URL Decomposition:** When users paste connection strings with query parameters (`ws://127.0.0.1:63877?tkn=...`), the UI automatically decouples the query token into the password field and cleans the username field to `ws://127.0.0.1:63877`. This allows Chrome to update existing credentials cleanly upon token rotation instead of creating fractured duplicate records.
+5. **Credential Management API (`navigator.credentials`):** Where supported, the UI integrates with `navigator.credentials.store(new PasswordCredential(...))` and `navigator.credentials.get({ password: true })` to coordinate with the browser's native credential store upon successful WebSocket handshake.
+
 

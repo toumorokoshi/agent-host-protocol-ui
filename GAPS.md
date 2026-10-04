@@ -41,6 +41,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Web Crypto AES-GCM Encrypted Storage:** Client-side encrypted storage architecture for host credentials and cached data.
 - [x] **Key Management & Modes:** Support Ephemeral session key mode (zero-knowledge, cleared on tab close), Passphrase vault (PBKDF2-HMAC-SHA-256), and Memory-Only mode.
 - [x] **Token Sanitizer:** Mask host connection tokens (`tkn=...`) from visible UI displays.
+- [x] **Browser Password Manager & Credential Management API Support:** Standardized form semantic attributes (`autocomplete="username"`, `autocomplete="current-password"`), smart URL query parameter decomposition, and `navigator.credentials.store` / `navigator.credentials.get` integration for Chrome, Safari Keychain, and 1Password.
 - [x] **DOMPurify Sanitization Pipeline:** AST-based HTML and markdown sanitization blocking script tags, dangerous URI schemes, and inline handlers.
 - [ ] **Strict Content Security Policy (CSP) Headers:** Production deployment CSP headers configuration.
 
