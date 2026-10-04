@@ -7,17 +7,18 @@ This document tracks identified gaps, planned milestones, and completed features
 ## 1. Core Protocol & Client Plumbing
 - [x] **Package & Tooling Initialization:** Initialized Vite + React 19 + TypeScript application workspace, configured `@microsoft/agent-host-protocol`, Biome, and `justfile`.
 - [x] **Connection Manager:** Implemented `AhpConnection` with WebSocket URL sanitization, protocol negotiation, and connection lifecycle management.
+- [x] **Automatic Mode Transition:** Automatically switches from demo mode to live mode upon entering host credentials and clearing simulated sessions.
 - [x] **Client Vault:** Implemented `CryptoVault` using Web Crypto API AES-GCM-256 with Ephemeral (zero-knowledge) and Passphrase (PBKDF2-HMAC-SHA-256) modes.
-- [ ] **Multi-Host Persistence Sync:** Complete multi-host profile switcher with background health polling.
 
 ## 2. Session Navigation & Explorer (Sidebar)
-- [x] **Session Catalog:** Session catalog with search filter, active session selection, and modified timestamps.
+- [x] **Session Catalog:** Real remote session listing with search filter, active session selection, and modified timestamps.
 - [x] **Live Session Indicators:** Visual distinction for live bridged TUI sessions with pulsing status badges.
-- [x] **Session Creation Flow:** Interactive modal to create new sessions specifying working directory, model, and reasoning effort.
-- [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions.
+- [x] **Remote Host Data in New Session Modal:** Dynamically populates working directory from remote host's `defaultDirectory` and models from `rootState.agents`.
+- [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions via remote `disposeSession` RPC.
 
 ## 3. Conversational Timeline & Streaming
 - [x] **Turn Timeline:** Completed turns and active streaming turn rendering.
+- [x] **Live Stream Integration:** Subscribes to `ahp-chat:/${id}` streaming actions (`chat/turnStarted`, `chat/textDelta`, `chat/reasoning`, `chat/toolCallStart`, `chat/toolCallDelta`, `chat/turnComplete`).
 - [x] **Markdown Renderer:** Secure streaming markdown parser with DOMPurify AST sanitization, syntax highlighting, and code block formatting.
 - [x] **Reasoning Stream Accordion:** Dedicated collapsible section for chain-of-thought with elapsed duration timer and token stats.
 - [x] **Tool Call Component:**
@@ -31,9 +32,9 @@ This document tracks identified gaps, planned milestones, and completed features
 ## 4. Composer, Steering & Queueing
 - [x] **Composer Input:** Autosizing multiline textarea with `Enter` to submit and `Shift+Enter` for newline.
 - [x] **Private Drafting by Default:** Keystrokes buffered strictly in local memory; unsolicited draft broadcasts disabled.
-- [x] **Slash Command Autocomplete:** Popover triggered by `/` completing skills, commands, and prompt templates.
-- [x] **Turn Execution Controls:** Prominent Stop / Abort button during generation.
-- [x] **Steering Messages:** In-flight steering toggle to adjust direction mid-turn without aborting.
+- [x] **Slash Command Autocomplete:** Popover triggered by `/` completing skills, commands, and prompt templates (querying remote `completions` RPC in live mode).
+- [x] **Turn Execution Controls:** Prominent Stop / Abort button dispatching `chat/turnCancelled`.
+- [x] **Steering Messages:** In-flight steering toggle to adjust direction mid-turn without aborting via `chat/pendingMessageSet`.
 - [x] **Queued Messages Manager:** Enqueue follow-up prompts, view queue, and remove items from queue.
 
 ## 5. Security, Privacy & Encryption

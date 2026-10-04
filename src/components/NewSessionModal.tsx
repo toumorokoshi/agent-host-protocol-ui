@@ -1,8 +1,11 @@
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ModelInfo } from "../types.ts";
 
 interface NewSessionModalProps {
 	isOpen: boolean;
+	defaultDirectory: string;
+	availableModels: ModelInfo[];
 	onClose: () => void;
 	onCreate: (
 		title: string,
@@ -12,11 +15,26 @@ interface NewSessionModalProps {
 	) => void;
 }
 
-export const NewSessionModal: React.FC<NewSessionModalProps> = ({ isOpen, onClose, onCreate }) => {
+export const NewSessionModal: React.FC<NewSessionModalProps> = ({
+	isOpen,
+	defaultDirectory,
+	availableModels,
+	onClose,
+	onCreate,
+}) => {
 	const [title, setTitle] = useState("");
-	const [cwd, setCwd] = useState("/Users/TZTWH7/workspace/agent-host-protocol-ui");
-	const [model, setModel] = useState("anthropic/claude-3-7-sonnet");
+	const [cwd, setCwd] = useState(defaultDirectory || "/");
+	const [model, setModel] = useState(availableModels[0]?.id || "pi");
 	const [thinkingLevel, setThinkingLevel] = useState<"none" | "low" | "medium" | "high">("high");
+
+	useEffect(() => {
+		if (isOpen) {
+			if (defaultDirectory) setCwd(defaultDirectory);
+			if (availableModels.length > 0 && (!model || !availableModels.some((m) => m.id === model))) {
+				setModel(availableModels[0].id);
+			}
+		}
+	}, [isOpen, defaultDirectory, availableModels, model]);
 
 	if (!isOpen) return null;
 
@@ -48,14 +66,14 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({ isOpen, onClos
 							<input
 								type="text"
 								className="form-input"
-								placeholder="e.g. Implement authentication middleware"
+								placeholder="e.g. Implement feature"
 								value={title}
 								onChange={(e) => setTitle(e.target.value)}
 							/>
 						</div>
 
 						<div className="form-group">
-							<label className="form-label">Working Directory</label>
+							<label className="form-label">Working Directory (Remote Host)</label>
 							<input
 								type="text"
 								className="form-input"
@@ -64,16 +82,31 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({ isOpen, onClos
 								onChange={(e) => setCwd(e.target.value)}
 								required
 							/>
+							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+								Host default directory: <code>{defaultDirectory || "/"}</code>
+							</span>
 						</div>
 
 						<div className="form-group">
-							<label className="form-label">Model Provider</label>
-							<select className="form-input" value={model} onChange={(e) => setModel(e.target.value)}>
-								<option value="anthropic/claude-3-7-sonnet">anthropic/claude-3-7-sonnet (Extended Thinking)</option>
-								<option value="openai/gpt-4o">openai/gpt-4o</option>
-								<option value="deepseek/deepseek-r1">deepseek/deepseek-r1 (Reasoning)</option>
-								<option value="google/gemini-2.5-pro">google/gemini-2.5-pro</option>
-							</select>
+							<label className="form-label">Model Provider & Model (from Remote Host)</label>
+							{availableModels.length > 0 ? (
+								<select className="form-input" value={model} onChange={(e) => setModel(e.target.value)}>
+									{availableModels.map((m) => (
+										<option key={m.id} value={m.id}>
+											{m.displayName} ({m.provider})
+										</option>
+									))}
+								</select>
+							) : (
+								<input
+									type="text"
+									className="form-input"
+									placeholder="e.g. anthropic/claude-3-7-sonnet"
+									value={model}
+									onChange={(e) => setModel(e.target.value)}
+									required
+								/>
+							)}
 						</div>
 
 						<div className="form-group">

@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ahpConnection } from "./ahp/connection.ts";
 import { createInitialMockSessions, simulateTurnStream } from "./ahp/mock-host.ts";
 import { ChatTimeline } from "./components/ChatTimeline.tsx";
@@ -10,7 +10,7 @@ import { Inspector } from "./components/Inspector.tsx";
 import { NewSessionModal } from "./components/NewSessionModal.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
-import type { ConnectionStatus, HostConfig, UiSession, UiTurn } from "./types.ts";
+import type { ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
 
 const DEFAULT_HOST: HostConfig = {
 	id: "default-local-host",
@@ -22,7 +22,7 @@ const DEFAULT_HOST: HostConfig = {
 export const App: React.FC = () => {
 	const [currentHost, setCurrentHost] = useState<HostConfig>(DEFAULT_HOST);
 	const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
-	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Default to Demo Mode for instant POC testing
+	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
 	const [sessions, setSessions] = useState<UiSession[]>(createInitialMockSessions());
 	const [activeSessionId, setActiveSessionId] = useState<string | null>(sessions[0]?.id || null);
 	const [activeTurn, setActiveTurn] = useState<UiTurn | undefined>(undefined);
@@ -30,7 +30,12 @@ export const App: React.FC = () => {
 	const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
 	const [isInspectorOpen, setIsInspectorOpen] = useState(true);
 
-	const cancelStreamRef = useRef<(() => void) | null>(null);
+	// Remote metadata
+	const [remoteDefaultDir, setRemoteDefaultDir] = useState<string>("");
+	const [remoteModels, setRemoteModels] = useState<ModelInfo[]>([]);
+
+	const cancelMockStreamRef = useRef<(() => void) | null>(null);
+	const unsubscribeLiveSessionRef = useRef<(() => void) | null>(null);
 
 	// Initialize vault on startup
 	useEffect(() => {
@@ -41,8 +46,70 @@ export const App: React.FC = () => {
 	useEffect(() => {
 		return ahpConnection.onStatusChange((status) => {
 			setConnectionStatus(status);
+			if (status === "connected") {
+				const info = ahpConnection.getRemoteInfo();
+				setRemoteDefaultDir(info.defaultDirectory);
+				setRemoteModels(info.models);
+			}
 		});
 	}, []);
+
+	// Load live sessions from remote host
+	const reloadLiveSessions = useCallback(async () => {
+		const liveSessions = await ahpConnection.listSessions();
+		setSessions(liveSessions);
+		if (liveSessions.length > 0) {
+			setActiveSessionId(liveSessions[0].id);
+		} else {
+			setActiveSessionId(null);
+		}
+	}, []);
+
+	// Subscribe to the active session when it changes in Live Mode
+	useEffect(() => {
+		if (isMockMode || !activeSessionId || connectionStatus !== "connected") {
+			return;
+		}
+
+		if (unsubscribeLiveSessionRef.current) {
+			unsubscribeLiveSessionRef.current();
+			unsubscribeLiveSessionRef.current = null;
+		}
+
+		let isSubscribed = true;
+
+		ahpConnection
+			.subscribeSession(activeSessionId, (data) => {
+				if (!isSubscribed) return;
+
+				if (data.turns !== undefined) {
+					setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, turns: data.turns || [] } : s)));
+				}
+				if (data.activeTurn !== undefined) {
+					setActiveTurn(data.activeTurn);
+				}
+				if (data.queuedMessages !== undefined) {
+					setSessions((prev) =>
+						prev.map((s) => (s.id === activeSessionId ? { ...s, queuedMessages: data.queuedMessages || [] } : s)),
+					);
+				}
+			})
+			.then((unsub) => {
+				if (isSubscribed) {
+					unsubscribeLiveSessionRef.current = unsub;
+				} else {
+					unsub();
+				}
+			});
+
+		return () => {
+			isSubscribed = false;
+			if (unsubscribeLiveSessionRef.current) {
+				unsubscribeLiveSessionRef.current();
+				unsubscribeLiveSessionRef.current = null;
+			}
+		};
+	}, [isMockMode, activeSessionId, connectionStatus]);
 
 	const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
@@ -54,7 +121,14 @@ export const App: React.FC = () => {
 		setActiveSessionId(id);
 	};
 
-	const handleDisposeSession = (id: string) => {
+	const handleDisposeSession = async (id: string) => {
+		if (!isMockMode && connectionStatus === "connected") {
+			try {
+				await ahpConnection.disposeSession(id);
+			} catch (err) {
+				console.warn("disposeSession failed on host:", err);
+			}
+		}
 		setSessions((prev) => prev.filter((s) => s.id !== id));
 		if (activeSessionId === id) {
 			const remaining = sessions.filter((s) => s.id !== id);
@@ -66,12 +140,31 @@ export const App: React.FC = () => {
 		setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s)));
 	};
 
-	const handleCreateSession = (
+	const handleCreateSession = async (
 		title: string,
 		workingDirectory: string,
 		model: string,
 		thinkingLevel: "none" | "low" | "medium" | "high",
 	) => {
+		if (!isMockMode && connectionStatus === "connected") {
+			try {
+				const newSessionId = await ahpConnection.createSession({
+					title,
+					workingDirectory,
+					model,
+				});
+
+				// Refresh remote sessions
+				await reloadLiveSessions();
+				setActiveSessionId(newSessionId);
+				return;
+			} catch (err: any) {
+				alert(`Failed to create remote session: ${err?.message || err}`);
+				return;
+			}
+		}
+
+		// Mock mode creation
 		const newSession: UiSession = {
 			id: `session-${Date.now()}`,
 			title,
@@ -90,10 +183,23 @@ export const App: React.FC = () => {
 		setActiveSessionId(newSession.id);
 	};
 
-	const handleSendMessage = (text: string, isSteering: boolean) => {
+	const handleSendMessage = async (text: string, isSteering: boolean) => {
 		if (!activeSession) return;
 
-		// If currently generating and not steering, push to queue
+		if (!isMockMode && connectionStatus === "connected") {
+			if (activeTurn && !isSteering) {
+				await ahpConnection.queueMessage(activeSession.id, text);
+				return;
+			}
+			if (isSteering && activeTurn) {
+				await ahpConnection.steerTurn(activeSession.id, text);
+				return;
+			}
+			await ahpConnection.sendMessage(activeSession.id, text, activeSession.model);
+			return;
+		}
+
+		// Mock Mode Execution
 		if (activeTurn && !isSteering) {
 			setSessions((prev) =>
 				prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
@@ -101,7 +207,6 @@ export const App: React.FC = () => {
 			return;
 		}
 
-		// In-flight steering
 		if (isSteering && activeTurn) {
 			setActiveTurn((prev) =>
 				prev
@@ -114,7 +219,6 @@ export const App: React.FC = () => {
 			return;
 		}
 
-		// Start a new turn
 		const turnId = `turn-${Date.now()}`;
 		const initialTurn: UiTurn = {
 			id: turnId,
@@ -128,7 +232,7 @@ export const App: React.FC = () => {
 
 		setActiveTurn(initialTurn);
 
-		cancelStreamRef.current = simulateTurnStream(
+		cancelMockStreamRef.current = simulateTurnStream(
 			text,
 			activeSession.model,
 			activeSession.thinkingLevel,
@@ -136,7 +240,6 @@ export const App: React.FC = () => {
 				setActiveTurn((prev) => (prev ? { ...prev, ...delta } : undefined));
 			},
 			() => {
-				// Turn completed: append to session turns
 				setActiveTurn((finalTurn) => {
 					if (finalTurn) {
 						setSessions((prev) =>
@@ -154,7 +257,6 @@ export const App: React.FC = () => {
 					return undefined;
 				});
 
-				// Check if there are queued messages to trigger
 				setTimeout(() => {
 					setSessions((prev) => {
 						const current = prev.find((s) => s.id === activeSession.id);
@@ -163,7 +265,6 @@ export const App: React.FC = () => {
 							const updatedSessions = prev.map((s) =>
 								s.id === activeSession.id ? { ...s, queuedMessages: remainingQueue } : s,
 							);
-							// Trigger next turn
 							handleSendMessage(nextMsg, false);
 							return updatedSessions;
 						}
@@ -174,10 +275,15 @@ export const App: React.FC = () => {
 		);
 	};
 
-	const handleCancelTurn = () => {
-		if (cancelStreamRef.current) {
-			cancelStreamRef.current();
-			cancelStreamRef.current = null;
+	const handleCancelTurn = async () => {
+		if (!isMockMode && connectionStatus === "connected" && activeSession) {
+			await ahpConnection.cancelTurn(activeSession.id);
+			return;
+		}
+
+		if (cancelMockStreamRef.current) {
+			cancelMockStreamRef.current();
+			cancelMockStreamRef.current = null;
 		}
 		if (activeTurn) {
 			const cancelled = { ...activeTurn, state: "cancelled" as const };
@@ -186,7 +292,12 @@ export const App: React.FC = () => {
 		}
 	};
 
-	const handleConfirmToolCall = (toolCallId: string, approved: boolean) => {
+	const handleConfirmToolCall = async (toolCallId: string, approved: boolean) => {
+		if (!isMockMode && connectionStatus === "connected" && activeSession) {
+			await ahpConnection.confirmToolCall(activeSession.id, toolCallId, approved);
+			return;
+		}
+
 		if (!activeTurn) return;
 		setActiveTurn((prev) => {
 			if (!prev) return undefined;
@@ -209,28 +320,55 @@ export const App: React.FC = () => {
 		if (!activeSession) return;
 		const lastTurn = activeSession.turns[activeSession.turns.length - 1];
 		if (lastTurn?.resumableError) {
-			// Clear error and resume
 			const repaired = { ...lastTurn, resumableError: undefined, state: "streaming" as const };
 			setActiveTurn(repaired);
 			setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? { ...s, turns: s.turns.slice(0, -1) } : s)));
 		}
 	};
 
+	/**
+	 * Automatically switches from demo mode to live mode when user enters host credentials.
+	 * Clears fake demo sessions so that only real live sessions appear!
+	 */
 	const handleSaveHost = async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => {
 		setCurrentHost(host);
 		await vault.init(mode, passphrase);
-		if (!isMockMode) {
-			await ahpConnection.connect(host);
+
+		// Automatically transition to Live Mode!
+		setIsMockMode(false);
+		// Clear out fake demo sessions immediately!
+		setSessions([]);
+		setActiveSessionId(null);
+		setActiveTurn(undefined);
+
+		const result = await ahpConnection.connect(host);
+		if (result.success) {
+			await reloadLiveSessions();
+		} else {
+			alert(`Could not connect to ${host.url}: ${result.error}`);
 		}
 	};
 
 	const handleToggleMockMode = async () => {
 		if (isMockMode) {
+			// Transitioning to Live Mode
 			setIsMockMode(false);
-			await ahpConnection.connect(currentHost);
+			setSessions([]);
+			setActiveSessionId(null);
+			setActiveTurn(undefined);
+
+			const result = await ahpConnection.connect(currentHost);
+			if (result.success) {
+				await reloadLiveSessions();
+			}
 		} else {
+			// Transitioning to Demo Mode
 			ahpConnection.disconnect();
 			setIsMockMode(true);
+			const mock = createInitialMockSessions();
+			setSessions(mock);
+			setActiveSessionId(mock[0]?.id || null);
+			setActiveTurn(undefined);
 		}
 	};
 
@@ -247,6 +385,22 @@ export const App: React.FC = () => {
 			),
 		);
 	};
+
+	// Model list for session creation: remote models in live mode, sample models in demo mode
+	const availableModels: ModelInfo[] =
+		!isMockMode && remoteModels.length > 0
+			? remoteModels
+			: [
+					{
+						id: "anthropic/claude-3-7-sonnet",
+						displayName: "Claude 3.7 Sonnet",
+						provider: "anthropic",
+						supportsThinking: true,
+					},
+					{ id: "openai/gpt-4o", displayName: "GPT-4o", provider: "openai" },
+					{ id: "deepseek/deepseek-r1", displayName: "DeepSeek R1", provider: "deepseek", supportsThinking: true },
+					{ id: "google/gemini-2.5-pro", displayName: "Gemini 2.5 Pro", provider: "google" },
+				];
 
 	return (
 		<>
@@ -311,8 +465,22 @@ export const App: React.FC = () => {
 						</>
 					) : (
 						<div style={{ margin: "auto", textAlign: "center", color: "var(--text-muted)" }}>
-							<h3>No Active Session</h3>
-							<p style={{ marginTop: "8px" }}>Select a session from the sidebar or create a new one.</p>
+							<h3>{isMockMode ? "No Active Session" : "Connected to Live Host"}</h3>
+							<p style={{ marginTop: "8px" }}>
+								{sessions.length === 0
+									? 'No sessions exist on this host yet. Click "+ New Session" to launch one.'
+									: "Select a session from the sidebar to inspect its timeline."}
+							</p>
+							{sessions.length === 0 && (
+								<button
+									type="button"
+									className="btn btn-primary"
+									style={{ marginTop: "16px" }}
+									onClick={() => setIsNewSessionModalOpen(true)}
+								>
+									+ Create First Session
+								</button>
+							)}
 						</div>
 					)}
 				</main>
@@ -334,6 +502,8 @@ export const App: React.FC = () => {
 
 			<NewSessionModal
 				isOpen={isNewSessionModalOpen}
+				defaultDirectory={remoteDefaultDir}
+				availableModels={availableModels}
 				onClose={() => setIsNewSessionModalOpen(false)}
 				onCreate={handleCreateSession}
 			/>
