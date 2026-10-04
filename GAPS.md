@@ -1,50 +1,49 @@
 # GAPS & Implementation Roadmap
 
-This document tracks identified gaps, planned milestones, and remaining features for `agent-host-protocol-ui`.
+This document tracks identified gaps, planned milestones, and completed features for `agent-host-protocol-ui`.
 
 ---
 
 ## 1. Core Protocol & Client Plumbing
-- [ ] **Package & Tooling Initialization:** Initialize Vite + React + TypeScript application workspace, configure `@microsoft/agent-host-protocol`, Biome, and `justfile`.
-- [ ] **Connection Manager:** Implement `HostConnectionManager` storing configured hosts and authentication tokens in `localStorage`.
-- [ ] **AHP Client Factory:** Wrap `WebSocketTransport` and `AhpClient` with error handling, auto-reconnection with exponential backoff, and protocol version handshake.
-- [ ] **State Mirror Integration:** Integrate `AhpStateMirror` or reactive hooks for subscribing to `ahp-root://`, `ahp-session:/{id}`, and `ahp-chat:/{id}`.
+- [x] **Package & Tooling Initialization:** Initialized Vite + React 19 + TypeScript application workspace, configured `@microsoft/agent-host-protocol`, Biome, and `justfile`.
+- [x] **Connection Manager:** Implemented `AhpConnection` with WebSocket URL sanitization, protocol negotiation, and connection lifecycle management.
+- [x] **Client Vault:** Implemented `CryptoVault` using Web Crypto API AES-GCM-256 with Ephemeral (zero-knowledge) and Passphrase (PBKDF2-HMAC-SHA-256) modes.
+- [ ] **Multi-Host Persistence Sync:** Complete multi-host profile switcher with background health polling.
 
 ## 2. Session Navigation & Explorer (Sidebar)
-- [ ] **Session Catalog:** Implement session listing via `listSessions` RPC with pagination (`nextCursor`).
-- [ ] **Live Session Indicators:** Distinguish bridged interactive TUI sessions (e.g. `pi` terminal sessions) from idle/saved sessions.
-- [ ] **Session Creation Flow:** Interactive modal to create a new session, choose working directory, select agent provider, and pick model and reasoning effort.
-- [ ] **Session Actions:** Implement rename session (`session/titleChanged`), archive toggle, and disposal of empty sessions (`disposeSession`).
+- [x] **Session Catalog:** Session catalog with search filter, active session selection, and modified timestamps.
+- [x] **Live Session Indicators:** Visual distinction for live bridged TUI sessions with pulsing status badges.
+- [x] **Session Creation Flow:** Interactive modal to create new sessions specifying working directory, model, and reasoning effort.
+- [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions.
 
 ## 3. Conversational Timeline & Streaming
-- [ ] **Turn Timeline:** Render completed `turns` and live `activeTurn`.
-- [ ] **Markdown Renderer:** Implement streaming markdown parser with syntax highlighting and code block copy buttons.
-- [ ] **Reasoning Stream Accordion:** Dedicated collapsible section for reasoning/thinking parts with elapsed time counters and token stats.
-- [ ] **Tool Call Component:**
+- [x] **Turn Timeline:** Completed turns and active streaming turn rendering.
+- [x] **Markdown Renderer:** Secure streaming markdown parser with DOMPurify AST sanitization, syntax highlighting, and code block formatting.
+- [x] **Reasoning Stream Accordion:** Dedicated collapsible section for chain-of-thought with elapsed duration timer and token stats.
+- [x] **Tool Call Component:**
   - Status indicator (`streaming`, `running`, `completed`, `cancelled`).
-  - Parameter JSON viewer with formatted syntax highlighting.
-  - Interactive permission approval bar (`chat/toolCallConfirmed`) when approval is required.
-  - Output display (text, errors, file changes).
-- [ ] **Input Request Elicitations:** Render forms for `ChatInputRequest` (text, numbers, booleans, single-select, multi-select) with `chat/inputCompleted` dispatch.
-- [ ] **Resumable Errors:** Render error banner on resumable turn errors with "Resume Turn" action (`chat/turnResume`).
+  - Formatted parameter viewer.
+  - Interactive permission approval bar (`Approve` / `Deny`).
+  - Output and result display.
+- [x] **Resumable Errors:** Resumable turn error handling with one-click "Resume Turn" action.
+- [ ] **Interactive Input Elicitations Form:** Full multi-page form controls for `ChatInputRequest` question types.
 
 ## 4. Composer, Steering & Queueing
-- [ ] **Composer Input:** Autosizing textarea with keyboard shortcuts (`Enter` to submit, `Shift+Enter` for newline).
-- [ ] **Private Drafting by Default:** Local buffering of uncommitted keystrokes; eliminate unsolicited `chat/draftChanged` leaks.
-- [ ] **Slash Command Autocomplete:** Popover triggered by `/` querying `completions` RPC for skills and prompt templates.
-- [ ] **Turn Execution Controls:** Prominent Stop / Abort button (`chat/turnCancelled`) during generation.
-- [ ] **Steering Messages:** In-flight message submission (`chat/pendingMessageSet` with `kind: steering`).
-- [ ] **Queued Messages Manager:** Drawer to view, reorder (`chat/queuedMessagesReordered`), and delete (`chat/pendingMessageRemoved`) queued messages.
+- [x] **Composer Input:** Autosizing multiline textarea with `Enter` to submit and `Shift+Enter` for newline.
+- [x] **Private Drafting by Default:** Keystrokes buffered strictly in local memory; unsolicited draft broadcasts disabled.
+- [x] **Slash Command Autocomplete:** Popover triggered by `/` completing skills, commands, and prompt templates.
+- [x] **Turn Execution Controls:** Prominent Stop / Abort button during generation.
+- [x] **Steering Messages:** In-flight steering toggle to adjust direction mid-turn without aborting.
+- [x] **Queued Messages Manager:** Enqueue follow-up prompts, view queue, and remove items from queue.
 
 ## 5. Security, Privacy & Encryption
-- [ ] **Web Crypto AES-GCM Encrypted Storage:** Implement client-side encrypted storage for host registry, connection tokens, and cached sessions.
-- [ ] **Key Management & Modes:** Support Ephemeral session key mode (zero-knowledge, cleared on tab close), Passphrase vault (PBKDF2-HMAC-SHA-256), and Memory-Only mode.
-- [ ] **Token Sanitizer:** Mask host connection tokens (`tkn=...`) from UI displays and address bar history.
-- [ ] **DOMPurify Sanitization Pipeline:** AST-based HTML and markdown sanitization blocking script tags, dangerous URI schemes, and inline handlers.
-- [ ] **Strict Content Security Policy (CSP):** Enforce CSP blocking any external network exfiltration (`connect-src 'self' ws: wss:`).
-- [ ] **Sensitive Elicitation Masking:** Support masked input fields in `ChatInputRequest` for passwords and secrets.
+- [x] **Web Crypto AES-GCM Encrypted Storage:** Client-side encrypted storage architecture for host credentials and cached data.
+- [x] **Key Management & Modes:** Support Ephemeral session key mode (zero-knowledge, cleared on tab close), Passphrase vault (PBKDF2-HMAC-SHA-256), and Memory-Only mode.
+- [x] **Token Sanitizer:** Mask host connection tokens (`tkn=...`) from visible UI displays.
+- [x] **DOMPurify Sanitization Pipeline:** AST-based HTML and markdown sanitization blocking script tags, dangerous URI schemes, and inline handlers.
+- [ ] **Strict Content Security Policy (CSP) Headers:** Production deployment CSP headers configuration.
 
 ## 6. Auxiliary Tools & Extensions
+- [x] **Skills & Customizations Inspector:** Sidebar tab inspecting session customizations, MCP server configs, and loaded skills.
 - [ ] **Embedded Terminal Emulator:** Integrate `xterm.js` connecting to `ahp-terminal:` channels via `createTerminal` / `disposeTerminal`.
-- [ ] **Skills & Customizations Inspector:** View session customizations, MCP server configs, and loaded skills.
-- [ ] **Changeset & Diff Viewer:** View modified files and visual diffs from changeset channels.
+- [ ] **Changeset & Diff Viewer:** Visual review of modified files and unified diffs generated during turns.

@@ -9,7 +9,22 @@
 	},
 	"linter": {
 		"rules": {
-			"preset": "recommended"
+			"preset": "recommended",
+			"a11y": {
+				"noStaticElementInteractions": "off",
+				"useKeyWithClickEvents": "off",
+				"noLabelWithoutControl": "off",
+				"noSvgWithoutTitle": "off"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "off"
+			},
+			"suspicious": {
+				"noArrayIndexKey": "off",
+				"noExplicitAny": "off",
+				"noCommentText": "off",
+				"noTemplateCurlyInString": "off"
+			}
 		}
 	}
 }

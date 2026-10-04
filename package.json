@@ -5,10 +5,27 @@
 	"type": "module",
 	"license": "Apache-2.0",
 	"scripts": {
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview",
+		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.15"
+		"@biomejs/biome": "^2.5.15",
+		"@types/dompurify": "^3.0.5",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.1.1",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.2"
+	},
+	"dependencies": {
+		"@microsoft/agent-host-protocol": "^1.0.0",
+		"dompurify": "^3.4.16",
+		"marked": "^18.0.14",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0"
 	}
 }
