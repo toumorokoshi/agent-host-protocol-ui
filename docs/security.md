@@ -129,3 +129,19 @@ When agents request sensitive system operations:
 - If a tool call has `ToolCallStatus.PendingConfirmation`, execution is halted until the user explicitly reviews the tool parameters and clicks **Approve**.
 - The approval interface displays full JSON arguments, target paths, and commands in a formatted viewer so the user has complete visibility before authorization.
 - Users can reject tool calls with optional feedback to steer the model safely.
+
+---
+
+## 7. Browser Password Manager & Credential Management API
+
+Because AHP daemons authenticate connections using connection tokens (e.g. `ws://127.0.0.1:63877?tkn=...`), browser password managers (Chrome Password Manager, Firefox, Safari/Keychain, 1Password, Bitwarden) naturally treat the host configuration dialog as a credential pair:
+
+- **Username / Host Identity:** The WebSocket URL (or host identifier) via `<input type="text" name="username" autocomplete="username" />`.
+- **Password / Connection Token:** The host authentication token via `<input type="password" name="password" autocomplete="current-password" />`.
+
+### Security Advantages
+1. **OS-Level Keychain Storage:** Browser password managers store tokens in the operating system's hardware-backed encrypted keychain (e.g., Apple Keychain with Secure Enclave, Windows Hello / DPAPI), requiring biometric (Touch ID / Face ID) or master password authentication to access.
+2. **Eliminates Plaintext Scraping:** Users do not need to store tokens in plaintext shell history, terminal logs, or unencrypted text files.
+3. **Seamless Multi-Host Autofill:** Returning to a saved host automatically suggests and fills the connection URL and token with zero manual interaction.
+4. **Credential Management API (`navigator.credentials`):** Where supported, the UI integrates with `navigator.credentials.store` and `navigator.credentials.get` to coordinate with the browser's native credential store.
+

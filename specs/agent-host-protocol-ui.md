@@ -333,6 +333,27 @@ Because AI agents and tool outputs process arbitrary code, command output, and m
 3. **Memory Zeroing & Session Purge:**
    - When a user chooses "Disconnect Host" or "Clear Session", the UI clears active subscription channels, purges the in-memory state mirror, and overwrites encryption keys in memory.
 
+### 6.5 Browser Password Manager & Credential Management API Integration
+
+Because AHP daemons authenticate connections using connection tokens (e.g., `ws://127.0.0.1:63877?tkn=...`), modern browsers (Chrome, Edge, Safari, Firefox) and password managers (1Password, Bitwarden, Apple Keychain) naturally interpret the Host WebSocket URL as a **Username** and the connection token as a **Password**.
+
+The specification formalizes and embraces this pattern:
+
+1. **Semantic HTML Credential Attributes:**
+   - The Host Configuration form is structured with semantic identity attributes:
+     - Host URL/Identifier: `<input type="text" name="username" autocomplete="username" ... />`
+     - Host Token: `<input type="password" name="password" autocomplete="current-password" ... />`
+   - This enables browser password managers to securely capture, store, and autofill agent host endpoints and tokens inside the operating system's native encrypted keychain, protected by device biometrics (Touch ID, Windows Hello, Face ID).
+   - Users can seamlessly switch between multiple host environments without manually looking up random port numbers or token strings.
+
+2. **Credential Management API (`navigator.credentials`):**
+   - In supporting browsers, the application can interface with the Web Credential Management API:
+     - After verifying a successful connection, optionally invoke `navigator.credentials.store(new PasswordCredential({ id: host.url, password: host.token, name: host.name }))`.
+     - When opening the connection dialog, query `navigator.credentials.get({ password: true })` to offer auto-fill candidates.
+
+3. **Dual-Tier Security Coexistence:**
+   - Users can rely on their browser's native keychain (via password manager autofill) or the application's built-in Web Crypto AES-GCM-256 vault (ephemeral or passphrase-protected). Both mechanisms guarantee that connection tokens are never exposed in unencrypted plaintext on disk.
+
 ---
 
 ## 7. Implementation Milestones

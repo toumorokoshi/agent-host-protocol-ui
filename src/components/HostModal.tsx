@@ -21,6 +21,21 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+
+		// Offer to save credentials into browser's native password manager (Keychain, Chrome, etc.)
+		if (typeof window !== "undefined" && "PasswordCredential" in window && navigator.credentials && token.trim()) {
+			try {
+				const cred = new (window as any).PasswordCredential({
+					id: url.trim(),
+					password: token.trim(),
+					name: name.trim() || "Agent Host",
+				});
+				navigator.credentials.store(cred).catch(() => {});
+			} catch {
+				// Ignore if browser restricts PasswordCredential
+			}
+		}
+
 		onSave(
 			{
 				...currentHost,
@@ -48,11 +63,15 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 					</button>
 				</div>
 
-				<form onSubmit={handleSubmit}>
+				<form onSubmit={handleSubmit} method="post" autoComplete="on">
 					<div className="modal-body">
 						<div className="form-group">
-							<label className="form-label">Host Name</label>
+							<label className="form-label" htmlFor="ahp-host-name">
+								Host Name
+							</label>
 							<input
+								id="ahp-host-name"
+								name="name"
 								type="text"
 								className="form-input"
 								placeholder="e.g. Local pi-agent-host"
@@ -62,9 +81,14 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 						</div>
 
 						<div className="form-group">
-							<label className="form-label">WebSocket URL</label>
+							<label className="form-label" htmlFor="ahp-host-url">
+								WebSocket URL (Host Identity)
+							</label>
 							<input
+								id="ahp-host-url"
+								name="username"
 								type="text"
+								autoComplete="username"
 								className="form-input"
 								placeholder="ws://127.0.0.1:63877"
 								value={url}
@@ -74,16 +98,21 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 						</div>
 
 						<div className="form-group">
-							<label className="form-label">Authentication Token (Optional)</label>
+							<label className="form-label" htmlFor="ahp-host-token">
+								Authentication Token (Password)
+							</label>
 							<input
+								id="ahp-host-token"
+								name="password"
 								type="password"
+								autoComplete="current-password"
 								className="form-input"
 								placeholder="Paste token or leave empty if disabled"
 								value={token}
 								onChange={(e) => setToken(e.target.value)}
 							/>
 							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-								Tokens are encrypted in your browser vault using AES-GCM-256 and never logged.
+								Protected by browser password manager (biometrics) or client Web Crypto AES-GCM vault.
 							</span>
 						</div>
 
