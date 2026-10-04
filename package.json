@@ -1,0 +1,14 @@
+{
+	"name": "agent-host-protocol-ui",
+	"version": "0.1.0",
+	"description": "Client-side web UI for the Agent Host Protocol (AHP) inspired by VS Code Agents view",
+	"type": "module",
+	"license": "Apache-2.0",
+	"scripts": {
+		"lint": "biome check .",
+		"format": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.15"
+	}
+}
