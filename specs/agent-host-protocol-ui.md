@@ -72,7 +72,7 @@ The VS Code Agents View represents Microsoft's architecture for decoupling agent
   - **Steering Messages:** Ability to submit guidance *while* a turn is running (`chat/pendingMessageSet` with `kind: steering`) to steer the model without aborting.
   - **Queued Messages:** Ability to queue follow-up prompts (`kind: queued`) that execute sequentially once the active turn completes.
   - **Queue Drawer / Manager:** Visual list of queued messages with drag-to-reorder (`chat/queuedMessagesReordered`) and delete capabilities (`chat/pendingMessageRemoved`).
-- **Draft Synchronization:** Debounced saving of user input draft via `chat/draftChanged`.
+- **Draft Privacy & Optional Synchronization:** In-progress composition is strictly private to the local browser session by default. Keystrokes are buffered locally without sending uncommitted text over the wire. Syncing to the host via `chat/draftChanged` is strictly opt-in for users requiring multi-device draft continuity.
 
 ### 2.5 Integrated Tooling & Auxiliary Views
 - **Interactive Terminals:** Full terminal emulator (xterm.js) embedded in a slide-over or tab panel, communicating with `ahp-terminal:` channels via `createTerminal` / `disposeTerminal` and bidirectional stream dispatch.
@@ -140,9 +140,13 @@ The UI leverages `AhpStateMirror` to maintain an authoritative, reactive local r
 3. `ahp-chat:/{chatId}`: Provides conversation history (`turns`), current in-flight turn (`activeTurn`), `steeringMessage`, `queuedMessages`, and `draft`.
 4. `ahp-terminal:/{terminalId}`: Provides terminal metadata and stream data.
 
-### 3.3 Storage & Persistence
-- **Host Registry:** Stored in `window.localStorage` (Host Name, WebSocket URL, Auth Token, Last Connected).
-- **Client Preferences:** Active host ID, active session ID, UI layout preferences (sidebar collapsed, theme settings).
+### 3.3 Storage & Persistence Architecture
+- **Encrypted Host Registry:** Stored in `localStorage` or `IndexedDB`, encrypted at rest using AES-GCM-256 via the Web Crypto API. Stores Host Name, WebSocket URL, and authentication tokens (`tkn=...`).
+- **Encrypted Local Cache:** Cached session metadata, recent turns, and uncommitted drafts are encrypted with the active AES-256 key.
+- **Privacy & Storage Modes:**
+  - *Ephemeral (Zero-Knowledge) Mode:* AES key generated in memory (`crypto.getRandomValues`), held only for the browser session. Closing the tab purges the key.
+  - *Passphrase Vault Mode:* AES key derived via PBKDF2 (SHA-256, 600,000 iterations) from a user master password.
+  - *Memory-Only Mode:* Zero writes to disk/localStorage; all state is ephemeral in JavaScript heap memory.
 
 ---
 
@@ -250,12 +254,93 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 
 ---
 
-## 6. Implementation Milestones
+## 6. User Privacy & Security Architecture
+
+Because user interactions with AI agents often involve proprietary codebases, confidential business logic, security credentials, and sensitive prompts, `agent-host-protocol-ui` enforces strict privacy and security guarantees across data in flight, data at rest, and browser execution boundaries.
+
+### 6.1 User Input Privacy & Confidentiality Guarantees
+
+1. **Air-Gapped Operation (Zero External Telemetry or CDN Exfiltration):**
+   - The application has **zero** third-party network dependencies at runtime.
+   - No tracking, analytics, crash reporting, telemetry, or remote web fonts (e.g. Google Fonts) are used. All assets (fonts, icons, styles, JavaScript bundles) are strictly self-contained.
+   - All network traffic is exclusively point-to-point between the user's browser session and the user-specified Agent Host WebSocket endpoint.
+
+2. **Private Composer Drafting (No Unintentional Broadcasts):**
+   - In AHP, `chat/draftChanged` allows clients to sync in-progress draft text. By default, `agent-host-protocol-ui` operates in **Private Drafting Mode**:
+     - In-progress keystrokes and uncommitted composer messages remain strictly in the local client's memory.
+     - Keystrokes and drafts are never dispatched over WebSocket (`chat/draftChanged`) until and unless the user explicitly enables "Collaborative / Multi-Client Draft Sync" in session settings.
+     - When the user presses Send, the message is dispatched as an explicit turn (`chat/turnStarted`).
+
+3. **Client-Side Encryption at Rest (Web Crypto API):**
+   - Any sensitive state persisted across browser sessions (host configurations, authentication tokens, cached turn history, or offline drafts) is encrypted before writing to persistent browser storage (`localStorage` or `IndexedDB`).
+   - **Encryption Standard:** AES-GCM with a 256-bit key (`SubtleCrypto` in the native Web Crypto API).
+   - **Key Derivation & Storage Modes:**
+     - **Mode A: Ephemeral / Zero-Knowledge Session (Default):** A cryptographically strong 256-bit key is generated via `crypto.getRandomValues()` and held exclusively in memory (`sessionStorage` or application memory). If the browser tab or window is closed, the key is permanently destroyed, rendering any cached data unreadable.
+     - **Mode B: Passphrase-Protected Vault:** The AES-256 key is derived from a user-supplied master passphrase using **PBKDF2-HMAC-SHA-256** (minimum 600,000 iterations and a unique 16-byte cryptographic salt). Data is decrypted on demand when the user enters their passphrase upon loading the UI.
+     - **Mode C: Ephemeral-Only (No Disk Writes):** A strict memory-only mode where no conversation history, drafts, or tokens ever touch `localStorage` or `IndexedDB`. All state lives in JavaScript heap memory and is wiped on page unload.
+
+4. **Credential & Token Vault:**
+   - Host connection tokens (`ws://host?tkn=...`) and MCP authentication secrets are stripped from URLs before display in the address bar or UI labels.
+   - Tokens in memory are stored in a dedicated, isolated credential store that is never serialized into plain-text logs or debug dumps.
+   - Tokens sent over WebSockets are kept in the WebSocket handshake query/header or via explicit `authenticate` commands.
+
+### 6.2 Transport Security & Network Isolation
+
+1. **Transport Layer Security (TLS/WSS):**
+   - Non-local connections (remote servers, cloud endpoints, LAN hosts) **must** utilize `wss://` (WebSocket Secure).
+   - Insecure `ws://` connections are restricted strictly to loopback addresses (`127.0.0.1`, `localhost`, and `[::1]`).
+   - If the UI is hosted on an `https://` origin, the browser's native mixed-content policy prevents unencrypted `ws://` connections to remote IPs, protecting against eavesdropping and MITM tampering.
+
+2. **Origin Validation & CSRF/WebSocket Hijacking Protection:**
+   - Client sends standard `Origin` headers during WebSocket handshakes.
+   - WebSocket connection URLs are validated against strict regex patterns (valid protocol `ws:`/`wss:`, valid hostname/IP, valid port, sanitized parameters) to prevent protocol injection or SSRF-like local port scanning.
+
+### 6.3 Defense-in-Depth Against Cross-Site Scripting (XSS)
+
+Because AI agents and tool outputs process arbitrary code, command output, and markdown, malicious or hallucinated agent output could attempt prompt injection or script injection.
+
+1. **Strict Markdown & HTML Sanitization:**
+   - All rendered markdown, code snippets, tool inputs, and tool outputs are passed through an AST-based sanitizer (e.g. `DOMPurify`) with an aggressive allowlist:
+     - Disallow `script`, `iframe`, `object`, `embed`, `base`, `form`, and `svg` script elements.
+     - Disallow inline event handlers (`onload`, `onerror`, `onclick`, etc.).
+     - Disallow dangerous URI schemes (`javascript:`, `data:text/html`, `vbscript:`). Only `http:`, `https:`, `ws:`, `wss:`, and `file:` are permitted on links.
+   - Code syntax highlighting is performed via tokenization without raw `innerHTML` evaluation.
+
+2. **Content Security Policy (CSP):**
+   - The application enforces a strict Content Security Policy:
+     ```http
+     default-src 'none';
+     script-src 'self';
+     style-src 'self' 'unsafe-inline';
+     img-src 'self' data: blob:;
+     font-src 'self' data:;
+     connect-src 'self' ws: wss:;
+     frame-ancestors 'none';
+     form-action 'none';
+     base-uri 'none';
+     ```
+   - This ensures that even in the unlikely event of an injection vulnerability, exfiltration of user prompts, tokens, or encryption keys to third-party endpoints is blocked at the browser network layer.
+
+### 6.4 Sensitive Input Masking & Tool Execution Guardrails
+
+1. **Sensitive Field Masking in Input Requests (`ChatInputRequest`):**
+   - For agent elicitations asking for secrets, tokens, or passwords, input fields support a `masked: true` or password-type representation to prevent shoulder-surfing and accidental screen-share disclosure.
+
+2. **Explicit Tool Confirmation UI:**
+   - Tool calls marked with `ToolCallStatus.PendingConfirmation` require explicit user consent before execution.
+   - The UI clearly displays the tool name, target command/file, and full parameter payloads so the user can audit destructive operations (e.g., `rm`, file overwrites, git pushes) before authorizing.
+
+3. **Memory Zeroing & Session Purge:**
+   - When a user chooses "Disconnect Host" or "Clear Session", the UI clears active subscription channels, purges the in-memory state mirror, and overwrites encryption keys in memory.
+
+---
+
+## 7. Implementation Milestones
 
 - **Milestone 1: Project Setup & Protocol Connectivity**
   - Setup Vite, TypeScript, Biome, and `justfile`.
   - Install `@microsoft/agent-host-protocol`.
-  - Implement connection manager (localStorage persistence, connect, reconnect, status reflection).
+  - Implement encrypted connection manager (localStorage persistence with Web Crypto AES-GCM / Ephemeral mode, connect, reconnect, status reflection).
   - Implement `ahp-root://` subscription and `listSessions` fetch.
 
 - **Milestone 2: Session Explorer & Creation**
@@ -266,17 +351,20 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 - **Milestone 3: Chat Timeline & Message Streaming**
   - Subscribe to `ahp-session:/{id}` and `ahp-chat:/{id}`.
   - Render conversation turns: User messages, assistant text streaming, thinking/reasoning blocks.
+  - Secure markdown rendering with AST-based sanitizer (disallow unsafe tags/protocols).
   - Render tool calls, execution statuses, and tool results.
   - Handle mid-turn errors and resumable turns (`chat/turnResume`).
 
-- **Milestone 4: Interactive Input, Steering & Queueing**
+- **Milestone 4: Interactive Input, Steering, Queueing & Privacy**
   - Implement smart input box with `/` slash command completions for skills and templates.
+  - Private drafting by default (local buffering without unsolicited `chat/draftChanged` sync).
   - Support aborting/cancelling active turns.
   - Support in-flight steering messages.
   - Support queued messages with reordering and removal.
-  - Render input request forms (`ChatInputRequest`) and dispatch responses.
+  - Render input request forms (`ChatInputRequest`) with sensitive field masking and dispatch responses.
 
-- **Milestone 5: Tool Approvals & Embedded Terminals**
+- **Milestone 5: Tool Approvals, Embedded Terminals & Hardening**
   - Implement tool call confirmation UI (`chat/toolCallConfirmed`).
   - Implement xterm.js integration for `ahp-terminal:` channels.
+  - Enforce Content Security Policy (CSP) and test zero-leakage air-gap assurances.
   - Polish layout, theme tokens, animations, and responsive behavior.

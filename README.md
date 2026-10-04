@@ -35,7 +35,12 @@ A fully client-side web interface for services implementing the [Agent Host Prot
   - **Turn Cancellation:** Prominent Stop / Abort button (`chat/turnCancelled`) while turns are in progress.
   - **Mid-Flight Steering:** Send steering messages (`chat/pendingMessageSet` with `kind: steering`) to adjust the agent's direction without cancelling.
   - **Message Queueing:** Enqueue follow-up prompts (`kind: queued`) that trigger automatically upon turn completion, complete with reorder and delete controls.
-  - **Input Draft Synchronization:** Real-time debounced draft sync (`chat/draftChanged`).
+- 🔒 **User Privacy & Zero-Knowledge Security:**
+  - **Private Composer Drafting:** Keystrokes and drafts remain strictly in local browser memory; no uncommitted text is broadcast over the network by default.
+  - **Client-Side Encryption at Rest:** Persistent state (host configurations, credentials, cached sessions) is encrypted using **Web Crypto API AES-GCM-256** with PBKDF2 key derivation or zero-knowledge ephemeral session keys.
+  - **100% Air-Gapped / Zero External Requests:** No third-party analytics, tracking, telemetry, or remote CDN dependencies.
+  - **Defense-in-Depth XSS Sanitization:** Strict Content Security Policy (CSP) and DOMPurify sanitization preventing script injection from model or tool output.
+  - **Token & Secret Masking:** Host connection tokens and elicitation passwords masked in UI and isolated in memory.
 
 - 🖥️ **Integrated Tooling & Auxiliary Panels:**
   - **Interactive Terminals:** Full terminal emulator (xterm.js) embedded in the UI, connected to host ptys via `ahp-terminal:` channels.
@@ -104,5 +109,6 @@ Once running, navigate to `http://localhost:5173` in your browser. Enter your ag
 ## Documentation
 
 - [Detailed Specification](specs/agent-host-protocol-ui.md)
+- [Security & Privacy Architecture](docs/security.md)
 - [Gaps & Implementation Roadmap](GAPS.md)
 - [License (Apache-2.0)](LICENSE)
