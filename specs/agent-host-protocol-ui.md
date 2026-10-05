@@ -128,11 +128,14 @@ const client = new AhpClient(transport);
 client.connect();
 
 const initResult = await client.initialize({
-  clientId: 'ahp-web-ui-' + crypto.randomUUID().slice(0, 8),
+  clientId: 'ahp-web-ui-' + randomUUID().slice(0, 8),
   protocolVersions: ['1.0.0', '0.9.0'],
   initialSubscriptions: ['ahp-root://'],
 });
 ```
+
+#### Dynamic Host Resolution for LAN & Network Access
+When the client UI is accessed from a remote device over a LAN address or domain (e.g. `http://192.168.1.50:5173`), hardcoding `127.0.0.1` as the default WebSocket target results in connection failure because loopback resolves on the client device itself. The UI dynamically detects non-localhost origins via `getDefaultHost(window.location)` and targets the workstation's host address (e.g. `ws://192.168.1.50:63877`), providing contextual diagnostics if loopback is targeted or if the AHP server must be configured with `--host 0.0.0.0`.
 
 ### 3.2 State Synchronization & Mirroring
 The UI leverages `AhpStateMirror` to maintain an authoritative, reactive local replica of the host state:

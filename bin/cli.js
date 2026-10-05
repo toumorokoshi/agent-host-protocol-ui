@@ -190,9 +190,17 @@ server.listen(port, listenHost, () => {
 	if (isWildcard) {
 		console.log(`│   > Local:   ${displayLocalUrl.padEnd(42)}│`);
 		for (const ip of networkIps) {
-			const netUrl = `http://${ip}:${port}${querySuffix}`;
+			const netAgentHost = agentHostParam
+				? agentHostParam.replace(/\b(127\.0\.0\.1|localhost)\b/g, ip)
+				: "";
+			const netQuerySuffix = netAgentHost ? `?host=${encodeURIComponent(netAgentHost)}` : "";
+			const netUrl = `http://${ip}:${port}${netQuerySuffix}`;
 			console.log(`│   > Network: ${netUrl.padEnd(42)}│`);
 		}
+		console.log(`│                                                        │
+│   Tip: When connecting from another device, ensure     │
+│   your AHP host is listening on 0.0.0.0                │
+│   (e.g., pi-agent-host-protocol --host 0.0.0.0).       │`);
 	} else if (isLocal) {
 		console.log(`│   > Local:   ${displayLocalUrl.padEnd(42)}│`);
 	} else {

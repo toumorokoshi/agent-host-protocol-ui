@@ -108,6 +108,15 @@ npx @toumorokoshi/agent-host-protocol-ui --port 3000
 npx @toumorokoshi/agent-host-protocol-ui --bind 0.0.0.0 --port 8080 --no-open
 ```
 
+> [!TIP]
+> **Connecting from another device (LAN / Mobile / Plain HTTP):**
+> 1. By default, AHP servers (like `pi-agent-host-protocol`) bind only to loopback (`127.0.0.1`). When accessing the UI from another device over your network, make sure to start your AHP server on all interfaces:
+>    ```sh
+>    pi-agent-host-protocol --host 0.0.0.0
+>    ```
+> 2. `agent-host-protocol-ui` automatically derives its default WebSocket host from `window.location.hostname` (e.g. `ws://192.168.1.50:63877`), ensuring remote devices connect to your workstation rather than their own loopback (`127.0.0.1`).
+> 3. If launching the CLI with `--host 0.0.0.0` and `--agent-host`, the CLI automatically rewrites `127.0.0.1` to each network interface IP in the printed Network URLs for seamless QR-code / mobile opening.
+
 ---
 
 ### Install from Source

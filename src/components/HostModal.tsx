@@ -38,7 +38,16 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 	// Proactively check browser password manager (Credential Management API) if fields are empty
 	useEffect(() => {
 		if (!isOpen) return;
-		if (typeof window !== "undefined" && navigator.credentials && !token && (!url || url === "ws://127.0.0.1:63877")) {
+		setName(currentHost.name);
+		setUrl(currentHost.url);
+		setToken(currentHost.token || "");
+
+		if (
+			typeof window !== "undefined" &&
+			navigator.credentials &&
+			!currentHost.token &&
+			(!currentHost.url || currentHost.url === "ws://127.0.0.1:63877")
+		) {
 			navigator.credentials
 				.get({ password: true, mediation: "optional" } as CredentialRequestOptions)
 				.then((cred) => {
@@ -53,7 +62,15 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 				})
 				.catch(() => {});
 		}
-	}, [isOpen, url, token]);
+	}, [isOpen, currentHost]);
+
+	const currentHostname = typeof window !== "undefined" ? window.location.hostname : "";
+	const isNonLocalOrigin =
+		Boolean(currentHostname) &&
+		currentHostname !== "localhost" &&
+		currentHostname !== "127.0.0.1" &&
+		currentHostname !== "::1";
+	const isLoopbackTarget = url.includes("127.0.0.1") || url.includes("localhost");
 
 	if (!isOpen) return null;
 
@@ -166,6 +183,36 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
 								Paste full URL or connection string. Chrome and password managers save this as the account username.
 							</span>
+							{isNonLocalOrigin && isLoopbackTarget && (
+								<div
+									style={{
+										marginTop: "8px",
+										padding: "8px 10px",
+										borderRadius: "6px",
+										background: "rgba(234, 179, 8, 0.1)",
+										border: "1px solid rgba(234, 179, 8, 0.3)",
+										fontSize: "12px",
+										lineHeight: "1.4",
+									}}
+								>
+									<span style={{ color: "#eab308", fontWeight: 600 }}>Network Notice:</span> Targeting{" "}
+									<code>127.0.0.1</code> connects to this device itself. To connect to your workstation host, use{" "}
+									<button
+										type="button"
+										className="btn btn-secondary"
+										style={{ padding: "1px 6px", fontSize: "11px", margin: "2px 0 2px 4px" }}
+										onClick={() => {
+											const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
+											setUrl(`${proto}${currentHostname}:63877`);
+										}}
+									>
+										ws://{currentHostname}:63877
+									</button>
+									<div style={{ marginTop: "4px", fontSize: "11px", color: "var(--text-muted)" }}>
+										Ensure your AHP host was started with <code>--host 0.0.0.0</code>.
+									</div>
+								</div>
+							)}
 						</div>
 
 						<div className="form-group">

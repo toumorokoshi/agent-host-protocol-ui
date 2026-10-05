@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ahpConnection } from "./ahp/connection.ts";
+import { formatHostConnectionError, getDefaultHost } from "./ahp/host-utils.ts";
 import { createInitialMockSessions, simulateTurnStream } from "./ahp/mock-host.ts";
 import { ChatTimeline } from "./components/ChatTimeline.tsx";
 import { Composer } from "./components/Composer.tsx";
@@ -13,16 +14,9 @@ import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
 import { useTheme } from "./hooks/useTheme.ts";
 import type { ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
 
-const DEFAULT_HOST: HostConfig = {
-	id: "default-local-host",
-	name: "Local pi-agent-host",
-	url: "ws://127.0.0.1:63877",
-	isDefault: true,
-};
-
 export const App: React.FC = () => {
 	const { themePreference, resolvedTheme, setTheme } = useTheme();
-	const [currentHost, setCurrentHost] = useState<HostConfig>(DEFAULT_HOST);
+	const [currentHost, setCurrentHost] = useState<HostConfig>(getDefaultHost);
 	const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
 	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
 	const [sessions, setSessions] = useState<UiSession[]>(createInitialMockSessions());
@@ -364,7 +358,9 @@ export const App: React.FC = () => {
 			if (result.success) {
 				await reloadLiveSessions();
 			} else {
-				alert(`Could not connect to ${host.url}: ${result.error}`);
+				const diag = formatHostConnectionError(host.url, result.error);
+				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
+				alert(`${diag.message}${extra}`);
 			}
 		},
 		[reloadLiveSessions],
@@ -400,6 +396,10 @@ export const App: React.FC = () => {
 			const result = await ahpConnection.connect(currentHost);
 			if (result.success) {
 				await reloadLiveSessions();
+			} else {
+				const diag = formatHostConnectionError(currentHost.url, result.error);
+				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
+				alert(`${diag.message}${extra}`);
 			}
 		} else {
 			// Transitioning to Demo Mode

@@ -150,4 +150,32 @@ describe("CLI External Serving & Hostname Binding", () => {
 			proc.kill("SIGTERM");
 		}
 	});
+
+	it("rewrites loopback in --agent-host for network URLs when bound to 0.0.0.0", async () => {
+		const port = 5215;
+		const { proc, getOutput } = await startCli([
+			"--bind",
+			"0.0.0.0",
+			"--port",
+			String(port),
+			"--agent-host",
+			"ws://127.0.0.1:63877?tkn=secret",
+			"--no-open",
+		]);
+
+		try {
+			const output = getOutput();
+			assert.ok(output.includes(`Local:   http://localhost:${port}?host=ws%3A%2F%2F127.0.0.1%3A63877%3Ftkn%3Dsecret`));
+			// If there are network interfaces, verify the network line does NOT contain 127.0.0.1
+			if (output.includes("Network:")) {
+				const networkLines = output.split("\n").filter((l) => l.includes("Network:"));
+				for (const line of networkLines) {
+					assert.ok(!line.includes("127.0.0.1"), `Network URL should rewrite loopback to interface IP: ${line}`);
+					assert.ok(line.includes("%3A63877"), `Network URL should preserve port and token: ${line}`);
+				}
+			}
+		} finally {
+			proc.kill("SIGTERM");
+		}
+	});
 });

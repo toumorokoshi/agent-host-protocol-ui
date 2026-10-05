@@ -55,12 +55,15 @@ Users can select their preferred privacy mode:
    - Completely disables browser storage (`localStorage` and `IndexedDB`).
    - All session state, host configurations, and history reside strictly in JavaScript memory and vanish on tab close.
 
-### Secure Context Requirements
+### Secure Context Requirements & Network Access
 
-Browsers expose the full Web Crypto API (`crypto.subtle`) and `crypto.randomUUID()` **only in secure contexts** (HTTPS or `localhost`). When the UI is served over plain HTTP on a network (e.g., LAN / mobile device testing):
+Browsers expose the full Web Crypto API (`crypto.subtle`), `crypto.randomUUID()`, and the Credential Management API (`navigator.credentials`) **only in secure contexts** (HTTPS or `localhost`). When the UI is served over plain HTTP on a network (e.g., LAN / mobile device testing):
 
 - The vault **degrades to Memory-Only mode** at init time with a console warning — the app remains fully functional, but encrypted persistence is unavailable in that context.
 - UUID generation falls back to `crypto.getRandomValues()` (available in all contexts) to assemble spec-compliant v4 UUIDs for client IDs, session URIs, and turn IDs.
+- Browser password manager integration (`PasswordCredential`) is bypassed gracefully.
+- **Loopback Resolution:** On client devices (e.g. phones), `127.0.0.1` targets the client device itself rather than the host workstation. The UI dynamically detects non-localhost origins and defaults to connecting to the workstation IP/hostname (`ws://${window.location.hostname}:63877`), with contextual diagnostics if loopback is targeted.
+- **Mixed Content Enforcement:** If the UI is loaded over HTTPS, browsers prohibit unencrypted `ws://` connections. AHP host connections must use `wss://` or the UI must be served over HTTP / localhost.
 
 Use `localhost` or HTTPS to re-enable encrypted-at-rest storage and native `crypto.randomUUID()`.
 
