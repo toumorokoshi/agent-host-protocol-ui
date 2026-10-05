@@ -92,21 +92,18 @@ export class AhpConnection {
 			this.client.connect();
 
 			// Handshake
-			const initResult = (await this.client.initialize({
+			const initResult = await this.client.initialize({
 				clientId: `ahp-ui-${crypto.randomUUID().slice(0, 8)}`,
 				protocolVersions: ["1.0.0", "0.9.0"],
 				initialSubscriptions: ["ahp-root://"],
-			})) as unknown as {
-				defaultDirectory?: string;
-				snapshots: Array<{ channel: string; state: unknown }>;
-			};
+			});
 
 			if (initResult.defaultDirectory) {
 				this.defaultDirectory = pathFromFileUri(initResult.defaultDirectory);
 			}
 
 			for (const snapshot of initResult.snapshots || []) {
-				this.mirror.applySnapshot(snapshot as any);
+				this.mirror.applySnapshot(snapshot);
 			}
 
 			// Populate remote agents & models from root snapshot
@@ -595,18 +592,20 @@ export class AhpConnection {
 	 */
 	async getCompletions(sessionId: string, text: string): Promise<SkillItem[]> {
 		if (!this.client) return [];
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 		try {
-			const res = (await this.client.request("completions" as any, {
-				channel: `ahp-chat:/${sessionId}`,
+			const res = await this.client.completions({
+				channel: chatUri,
 				text,
 				offset: text.length,
-				kind: "userMessage",
-			})) as unknown as { items: Array<{ insertText: string; label?: string; detail?: string }> };
+				kind: "userMessage" as any,
+			});
 
 			return (res.items || []).map((item) => ({
-				id: item.label || item.insertText,
-				name: item.label || item.insertText,
-				description: item.detail || "Remote skill or template",
+				id: item.attachment?.label || item.insertText,
+				name: item.attachment?.label || item.insertText,
+				description: (item.attachment as any)?.detail || "Remote skill or template",
 				type: "skill",
 			}));
 		} catch {
@@ -641,24 +640,25 @@ function mapChatTurnToUiTurn(turn: Turn): UiTurn {
 
 	for (const part of turn.responseParts || []) {
 		if (part.kind === "markdown") {
-			assistantText += (part as any).content || "";
+			assistantText += part.content;
 		} else if (part.kind === "reasoning") {
-			thinkingContent += (part as any).content || "";
+			thinkingContent += part.content;
 		} else if (part.kind === "toolCall") {
-			const tc = (part as any).toolCall;
-			if (tc) {
-				toolCalls.push({
-					id: tc.toolCallId || `tc-${Math.random()}`,
-					name: tc.toolName || "tool",
-					arguments: tc.input || tc.arguments || {},
-					status: tc.status || "completed",
-					result: tc.result ? (typeof tc.result === "string" ? tc.result : JSON.stringify(tc.result)) : undefined,
-					error: tc.error ? String(tc.error) : undefined,
-				});
-			}
+			const tc = part.toolCall;
+			const input = "input" in tc ? (tc.input as Record<string, unknown>) : {};
+			const result = "result" in tc ? tc.result : undefined;
+			const error = "error" in tc ? tc.error : undefined;
+			toolCalls.push({
+				id: tc.toolCallId || `tc-${Math.random()}`,
+				name: tc.toolName || "tool",
+				arguments: input || {},
+				status: tc.status as any,
+				result: result ? (typeof result === "string" ? result : JSON.stringify(result)) : undefined,
+				error: error ? String(error) : undefined,
+			});
 		} else if (part.kind === "error") {
-			if ((part as any).resumable) {
-				resumableError = (part as any).error?.message || "Error occurred";
+			if (part.resumable) {
+				resumableError = part.error.message || "Error occurred";
 			}
 		}
 	}
@@ -674,10 +674,8 @@ function mapChatTurnToUiTurn(turn: Turn): UiTurn {
 		thinkingDurationMs: thinkingContent ? 1200 : undefined,
 		toolCalls,
 		resumableError,
-		tokens: turn.usage
-			? { prompt: (turn.usage as any).promptTokens || 0, completion: (turn.usage as any).completionTokens || 0 }
-			: undefined,
-		state: (turn.state as any) || "complete",
+		tokens: turn.usage ? { prompt: turn.usage.inputTokens ?? 0, completion: turn.usage.outputTokens ?? 0 } : undefined,
+		state: turn.state,
 	};
 }
 

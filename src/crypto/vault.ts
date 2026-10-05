@@ -70,7 +70,7 @@ class CryptoVault {
 		return crypto.subtle.deriveKey(
 			{
 				name: "PBKDF2",
-				salt: salt as unknown as ArrayBuffer,
+				salt: salt.buffer as ArrayBuffer,
 				iterations: 600000,
 				hash: "SHA-256",
 			},
@@ -92,7 +92,7 @@ class CryptoVault {
 		const encoded = enc.encode(jsonStr);
 
 		const ciphertextBuf = await crypto.subtle.encrypt(
-			{ name: "AES-GCM", iv: iv as unknown as BufferSource },
+			{ name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
 			this.activeKey,
 			encoded,
 		);
@@ -116,9 +116,9 @@ class CryptoVault {
 			const ciphertext = this.base64ToArrayBuffer(payload.ciphertext);
 
 			const decrypted = await crypto.subtle.decrypt(
-				{ name: "AES-GCM", iv: iv as unknown as BufferSource },
+				{ name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
 				this.activeKey,
-				ciphertext as unknown as BufferSource,
+				ciphertext.buffer as ArrayBuffer,
 			);
 
 			const dec = new TextDecoder();

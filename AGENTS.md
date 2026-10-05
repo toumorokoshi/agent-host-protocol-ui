@@ -60,6 +60,16 @@ The following code tenants are followed:
 - re-use code as much as possible.
 - leverage best-practice third party libraries.
 
+## Type Safety & Casting Guidelines
+
+To prevent silent runtime bugs and maintain compiler guarantees:
+
+- **Strictly prohibit double casting (`as unknown as T`):** Never use `as unknown as T` to force an object into an incompatible type. Double casting silences TypeScript's structural checks and hides object hierarchy bugs (such as expecting properties of an inner payload directly on an outer wrapper, e.g., `result.turns` instead of `result.snapshot?.state.turns`).
+- **Narrow inner payloads, never outer envelopes:** In protocol SDKs with generic envelopes (such as `SubscribeResult` containing `snapshot?: Snapshot` where `Snapshot.state` is `unknown`), cast or narrow only the *inner payload* (`snapshot?.state as ChatState | undefined`), never the outer response.
+- **Rely on discriminated unions:** Use TypeScript's native narrowing (e.g. `switch (part.kind)`) rather than casting union variants. When the union is checked, TypeScript automatically narrows fields like `part.content` without any casts.
+- **Avoid `as any`:** Never use `as any` to silence compiler warnings. Use proper interface definitions, type guards, or global declaration augmentations (e.g. `declare global { interface Window ... }`).
+- **Mandate optional chaining for optional state:** Always use optional chaining (`?.`) when accessing fields on state snapshots or API payloads to ensure absent properties at runtime fail gracefully rather than throwing or producing silent bugs.
+
 ## Examples
 
 - example data is in the `examples/` directory.

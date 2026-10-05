@@ -3,6 +3,23 @@ import { useEffect, useState } from "react";
 import type { StoragePrivacyMode } from "../crypto/vault.ts";
 import type { HostConfig } from "../types.ts";
 
+interface PasswordCredentialData {
+	id: string;
+	password: string;
+	name?: string;
+}
+
+interface WebPasswordCredential extends Credential {
+	readonly password?: string;
+	readonly name?: string;
+}
+
+declare global {
+	interface Window {
+		PasswordCredential?: new (data: PasswordCredentialData) => Credential;
+	}
+}
+
 interface HostModalProps {
 	currentHost: HostConfig;
 	isOpen: boolean;
@@ -23,13 +40,14 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 		if (!isOpen) return;
 		if (typeof window !== "undefined" && navigator.credentials && !token && (!url || url === "ws://127.0.0.1:63877")) {
 			navigator.credentials
-				.get({ password: true, mediation: "optional" } as any)
-				.then((cred: any) => {
-					if (cred?.id && cred.password) {
-						setUrl(cred.id);
-						setToken(cred.password);
-						if (cred.name && cred.name !== cred.id) {
-							setName(cred.name);
+				.get({ password: true, mediation: "optional" } as CredentialRequestOptions)
+				.then((cred) => {
+					const passwordCred = cred as WebPasswordCredential | null;
+					if (passwordCred?.id && passwordCred.password) {
+						setUrl(passwordCred.id);
+						setToken(passwordCred.password);
+						if (passwordCred.name && passwordCred.name !== passwordCred.id) {
+							setName(passwordCred.name);
 						}
 					}
 				})
@@ -73,9 +91,9 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 		const cleanName = name.trim() || "Agent Host";
 
 		// Save credentials into browser's native password manager (Chrome, Keychain, Edge, etc.)
-		if (typeof window !== "undefined" && "PasswordCredential" in window && navigator.credentials && cleanToken) {
+		if (typeof window !== "undefined" && window.PasswordCredential && navigator.credentials && cleanToken) {
 			try {
-				const cred = new (window as any).PasswordCredential({
+				const cred = new window.PasswordCredential({
 					id: cleanUrl,
 					password: cleanToken,
 					name: cleanName,
