@@ -1,11 +1,15 @@
 import type React from "react";
-import { useEffect, useState } from "react";
-import type { ModelInfo } from "../types.ts";
+import { useEffect, useMemo, useState } from "react";
+import type { ModelInfo, UiSession } from "../types.ts";
+import { extractDirectoryOptions } from "../utils/directory-options.ts";
+
+export const OTHER_DIRECTORY_VALUE = "__other__";
 
 interface NewSessionModalProps {
 	isOpen: boolean;
 	defaultDirectory: string;
 	availableModels: ModelInfo[];
+	existingSessions?: UiSession[];
 	onClose: () => void;
 	onCreate: (
 		title: string,
@@ -19,28 +23,52 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({
 	isOpen,
 	defaultDirectory,
 	availableModels,
+	existingSessions = [],
 	onClose,
 	onCreate,
 }) => {
 	const [title, setTitle] = useState("");
-	const [cwd, setCwd] = useState(defaultDirectory || "/");
 	const [model, setModel] = useState(availableModels[0]?.id || "pi");
 	const [thinkingLevel, setThinkingLevel] = useState<"none" | "low" | "medium" | "high">("high");
 
+	const directoryOptions = useMemo(
+		() => extractDirectoryOptions(defaultDirectory, existingSessions),
+		[defaultDirectory, existingSessions],
+	);
+
+	const [selectedDirOption, setSelectedDirOption] = useState<string>(() => {
+		return directoryOptions[0]?.path || OTHER_DIRECTORY_VALUE;
+	});
+	const [customCwd, setCustomCwd] = useState<string>(() => {
+		return defaultDirectory || "";
+	});
+
 	useEffect(() => {
 		if (isOpen) {
-			if (defaultDirectory) setCwd(defaultDirectory);
+			const initialDefault = directoryOptions[0]?.path;
+			if (initialDefault) {
+				setSelectedDirOption(initialDefault);
+				setCustomCwd(initialDefault);
+			} else {
+				setSelectedDirOption(OTHER_DIRECTORY_VALUE);
+				setCustomCwd(defaultDirectory || "");
+			}
+
 			if (availableModels.length > 0 && (!model || !availableModels.some((m) => m.id === model))) {
 				setModel(availableModels[0].id);
 			}
 		}
-	}, [isOpen, defaultDirectory, availableModels, model]);
+	}, [isOpen, directoryOptions, defaultDirectory, availableModels, model]);
 
 	if (!isOpen) return null;
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
-		onCreate(title.trim() || "New Agent Session", cwd.trim(), model, thinkingLevel);
+		const finalCwd = (selectedDirOption === OTHER_DIRECTORY_VALUE ? customCwd : selectedDirOption).trim();
+
+		if (!finalCwd) return;
+
+		onCreate(title.trim() || "New Agent Session", finalCwd, model, thinkingLevel);
 		setTitle("");
 		onClose();
 	};
@@ -73,18 +101,70 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({
 						</div>
 
 						<div className="form-group">
-							<label className="form-label">Working Directory (Remote Host)</label>
-							<input
-								type="text"
-								className="form-input"
-								placeholder="/path/to/project"
-								value={cwd}
-								onChange={(e) => setCwd(e.target.value)}
-								required
-							/>
-							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-								Host default directory: <code>{defaultDirectory || "/"}</code>
-							</span>
+							<label className="form-label" htmlFor="working-directory-select">
+								Working Directory (Remote Host)
+							</label>
+							{directoryOptions.length > 0 ? (
+								<>
+									<select
+										id="working-directory-select"
+										className="form-input"
+										value={selectedDirOption}
+										onChange={(e) => {
+											const val = e.target.value;
+											setSelectedDirOption(val);
+											if (val !== OTHER_DIRECTORY_VALUE) {
+												setCustomCwd(val);
+											}
+										}}
+									>
+										<optgroup label="Existing Directories">
+											{directoryOptions.map((opt) => (
+												<option key={opt.path} value={opt.path}>
+													{opt.label}
+												</option>
+											))}
+										</optgroup>
+										<option value={OTHER_DIRECTORY_VALUE}>Other (enter custom directory)...</option>
+									</select>
+
+									{selectedDirOption === OTHER_DIRECTORY_VALUE ? (
+										<div style={{ marginTop: "6px" }}>
+											<input
+												type="text"
+												className="form-input"
+												placeholder="/path/to/project"
+												value={customCwd}
+												onChange={(e) => setCustomCwd(e.target.value)}
+												required
+											/>
+											<span
+												style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "4px" }}
+											>
+												Enter an absolute path on the remote host.
+											</span>
+										</div>
+									) : (
+										<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+											Selected directory: <code>{selectedDirOption}</code>
+										</span>
+									)}
+								</>
+							) : (
+								<>
+									<input
+										type="text"
+										className="form-input"
+										placeholder="/path/to/project"
+										value={customCwd}
+										onChange={(e) => setCustomCwd(e.target.value)}
+										required
+									/>
+									<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+										Host default directory: <code>{defaultDirectory || "/"}</code>
+									</span>
+								</>
+							)}
 						</div>
 
 						<div className="form-group">

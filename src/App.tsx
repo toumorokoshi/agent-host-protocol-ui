@@ -588,6 +588,7 @@ export const App: React.FC = () => {
 				isOpen={isNewSessionModalOpen}
 				defaultDirectory={remoteDefaultDir}
 				availableModels={availableModels}
+				existingSessions={sessions}
 				onClose={() => setIsNewSessionModalOpen(false)}
 				onCreate={handleCreateSession}
 			/>

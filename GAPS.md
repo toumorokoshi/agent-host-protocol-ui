@@ -14,7 +14,7 @@ This document tracks identified gaps, planned milestones, and completed features
 ## 2. Session Navigation & Explorer (Sidebar)
 - [x] **Session Catalog:** Real remote session listing with search filter, active session selection, and modified timestamps.
 - [x] **Live Session Indicators:** Visual distinction for live bridged TUI sessions with pulsing status badges.
-- [x] **Remote Host Data in New Session Modal:** Dynamically populates working directory from remote host's `defaultDirectory` and models from `rootState.agents`.
+- [x] **Remote Host Data in New Session Modal:** Dynamically populates working directory dropdown with quick-selection from existing session directories and host `defaultDirectory`, with an "Other" option for hand-populating custom directory paths, and models from `rootState.agents`.
 - [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions via remote `disposeSession` RPC.
 
 ## 3. Conversational Timeline & Streaming
