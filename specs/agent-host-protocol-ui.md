@@ -281,7 +281,7 @@ Because user interactions with AI agents often involve proprietary codebases, co
    - **Encryption Standard:** AES-GCM with a 256-bit key (`SubtleCrypto` in the native Web Crypto API).
    - **Key Derivation & Storage Modes:**
      - **Mode A: Ephemeral / Zero-Knowledge Session (Default):** A cryptographically strong 256-bit key is generated via `crypto.getRandomValues()` and held exclusively in memory (`sessionStorage` or application memory). If the browser tab or window is closed, the key is permanently destroyed, rendering any cached data unreadable.
-     - **Mode B: Passphrase-Protected Vault:** The AES-256 key is derived from a user-supplied master passphrase using **PBKDF2-HMAC-SHA-256** (minimum 600,000 iterations and a unique 16-byte cryptographic salt). Data is decrypted on demand when the user enters their passphrase upon loading the UI.
+     - **Mode B: Passphrase-Protected Vault:** The entire application configuration (host connection, auth tokens, and preferences) is encrypted with AES-256 derived from a common master passphrase using **PBKDF2-HMAC-SHA-256** (minimum 600,000 iterations and a unique 16-byte cryptographic salt). When stored configuration is detected upon loading the UI, the user is immediately prompted with an unlock modal to enter the passphrase and restore all settings.
      - **Mode C: Ephemeral-Only (No Disk Writes):** A strict memory-only mode where no conversation history, drafts, or tokens ever touch `localStorage` or `IndexedDB`. All state lives in JavaScript heap memory and is wiped on page unload.
 
 4. **Credential & Token Vault:**

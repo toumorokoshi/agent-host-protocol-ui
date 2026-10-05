@@ -10,6 +10,14 @@ export interface HostConfig {
 	isDefault?: boolean;
 }
 
+export interface AppConfiguration {
+	version: number;
+	currentHost: HostConfig;
+	savedHosts?: HostConfig[];
+	themePreference?: "system" | "light" | "dark";
+	lastSavedAt?: string;
+}
+
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
 
 export interface ModelInfo {

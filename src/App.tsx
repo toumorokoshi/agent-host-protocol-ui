@@ -10,10 +10,12 @@ import { HostModal } from "./components/HostModal.tsx";
 import { Inspector } from "./components/Inspector.tsx";
 import { NewSessionModal } from "./components/NewSessionModal.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
+import { UnlockVaultModal } from "./components/UnlockVaultModal.tsx";
+import { clearStoredVault, hasStoredVault, saveAppConfiguration, unlockAppConfiguration } from "./crypto/app-config.ts";
 import { randomUUID } from "./crypto/uuid.ts";
 import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
 import { useTheme } from "./hooks/useTheme.ts";
-import type { ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
+import type { AppConfiguration, ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
 
 export const App: React.FC = () => {
 	const { themePreference, resolvedTheme, setTheme } = useTheme();
@@ -25,6 +27,7 @@ export const App: React.FC = () => {
 	const [activeTurn, setActiveTurn] = useState<UiTurn | undefined>(undefined);
 	const [isHostModalOpen, setIsHostModalOpen] = useState(false);
 	const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
+	const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
 	const [isInspectorOpen, setIsInspectorOpen] = useState(
 		() => typeof window !== "undefined" && window.innerWidth > 768,
 	);
@@ -37,9 +40,13 @@ export const App: React.FC = () => {
 	const cancelMockStreamRef = useRef<(() => void) | null>(null);
 	const unsubscribeLiveSessionRef = useRef<(() => void) | null>(null);
 
-	// Initialize vault on startup
+	// Initialize vault on startup; if an encrypted vault exists, prompt user to unlock
 	useEffect(() => {
-		vault.init("ephemeral").catch((err) => console.warn("Vault init failed:", err));
+		if (hasStoredVault()) {
+			setIsUnlockModalOpen(true);
+		} else {
+			vault.init("ephemeral").catch((err) => console.warn("Vault init failed:", err));
+		}
 	}, []);
 
 	// Listen to connection status changes
@@ -345,6 +352,59 @@ export const App: React.FC = () => {
 		}
 	};
 
+	const handleUnlockVault = async (passphrase: string): Promise<{ success: boolean; error?: string }> => {
+		try {
+			const config = await unlockAppConfiguration(passphrase);
+			if (!config) {
+				return { success: false, error: "Incorrect passphrase. Please try again." };
+			}
+
+			setCurrentHost(config.currentHost);
+			if (config.themePreference) {
+				setTheme(config.themePreference);
+			}
+			setIsUnlockModalOpen(false);
+
+			// Automatically transition to Live Mode and connect to restored host!
+			setIsMockMode(false);
+			setSessions([]);
+			setActiveSessionId(null);
+			setActiveTurn(undefined);
+
+			const result = await ahpConnection.connect(config.currentHost);
+			if (result.success) {
+				await reloadLiveSessions();
+			} else {
+				const diag = formatHostConnectionError(config.currentHost.url, result.error);
+				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
+				alert(`${diag.message}${extra}`);
+			}
+
+			return { success: true };
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "Failed to decrypt configuration";
+			return { success: false, error: msg };
+		}
+	};
+
+	const handleSkipUnlock = () => {
+		setIsUnlockModalOpen(false);
+		vault.init("ephemeral").catch(() => {});
+	};
+
+	const handleResetVault = () => {
+		if (
+			typeof window !== "undefined" &&
+			window.confirm(
+				"Are you sure you want to reset your stored configuration? This will delete all encrypted credentials from this browser.",
+			)
+		) {
+			clearStoredVault();
+			setIsUnlockModalOpen(false);
+			vault.init("ephemeral").catch(() => {});
+		}
+	};
+
 	/**
 	 * Automatically switches from demo mode to live mode when user enters host credentials.
 	 * Clears fake demo sessions so that only real live sessions appear!
@@ -352,20 +412,18 @@ export const App: React.FC = () => {
 	const handleSaveHost = useCallback(
 		async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => {
 			setCurrentHost(host);
-			await vault.init(mode, passphrase);
 
-			if (typeof localStorage !== "undefined") {
-				if (mode === "passphrase" && passphrase) {
-					const encrypted = await vault.encrypt(host);
-					if (encrypted) {
-						localStorage.setItem("ahp_encrypted_vault", encrypted);
-						localStorage.setItem("ahp_vault_mode", "passphrase");
-					}
-				} else {
-					// Memory-only or Ephemeral mode: clear any persistent vault ciphertext
-					localStorage.removeItem("ahp_encrypted_vault");
-					localStorage.removeItem("ahp_vault_mode");
-				}
+			if (mode === "passphrase" && passphrase) {
+				const config: AppConfiguration = {
+					version: 1,
+					currentHost: host,
+					themePreference,
+					lastSavedAt: new Date().toISOString(),
+				};
+				await saveAppConfiguration(config, passphrase);
+			} else {
+				clearStoredVault();
+				await vault.init(mode);
 			}
 
 			// Automatically transition to Live Mode!
@@ -384,7 +442,7 @@ export const App: React.FC = () => {
 				alert(`${diag.message}${extra}`);
 			}
 		},
-		[reloadLiveSessions],
+		[themePreference, reloadLiveSessions],
 	);
 
 	// Check URL query parameters on startup for pre-configured host (e.g. from CLI runner)
@@ -605,6 +663,13 @@ export const App: React.FC = () => {
 				existingSessions={sessions}
 				onClose={() => setIsNewSessionModalOpen(false)}
 				onCreate={handleCreateSession}
+			/>
+
+			<UnlockVaultModal
+				isOpen={isUnlockModalOpen}
+				onUnlock={handleUnlockVault}
+				onSkip={handleSkipUnlock}
+				onReset={handleResetVault}
 			/>
 		</>
 	);

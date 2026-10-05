@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { type StoragePrivacyMode, vault } from "../crypto/vault.ts";
+import { hasStoredVault, unlockAppConfiguration } from "../crypto/app-config.ts";
+import type { StoragePrivacyMode } from "../crypto/vault.ts";
 import type { HostConfig } from "../types.ts";
 
 interface PasswordCredentialData {
@@ -46,7 +47,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 		setUrl(currentHost.url);
 		setToken(currentHost.token || "");
 
-		if (typeof localStorage !== "undefined" && localStorage.getItem("ahp_encrypted_vault")) {
+		if (hasStoredVault()) {
 			setHasEncryptedVault(true);
 			setMode("passphrase");
 		} else {
@@ -78,18 +79,11 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 	const handleUnlockVault = async () => {
 		if (!unlockPassphrase.trim()) return;
 		try {
-			await vault.init("passphrase", unlockPassphrase.trim());
-			const encrypted = typeof localStorage !== "undefined" ? localStorage.getItem("ahp_encrypted_vault") : null;
-			if (!encrypted) {
-				setUnlockStatus("error");
-				setUnlockErrorMessage("No encrypted data found in local storage.");
-				return;
-			}
-			const restored = await vault.decrypt<HostConfig>(encrypted);
-			if (restored?.url) {
-				setUrl(restored.url);
-				setToken(restored.token || "");
-				if (restored.name) setName(restored.name);
+			const config = await unlockAppConfiguration(unlockPassphrase.trim());
+			if (config?.currentHost?.url) {
+				setUrl(config.currentHost.url);
+				setToken(config.currentHost.token || "");
+				if (config.currentHost.name) setName(config.currentHost.name);
 				setMode("passphrase");
 				setPassphrase(unlockPassphrase.trim());
 				setUnlockStatus("success");
