@@ -270,34 +270,35 @@ export class AhpConnection {
 		try {
 			// Subscribe to session
 			const { result: sessionRes, subscription: sessionSub } = await this.client.subscribe(sessionUri);
-			const sessionSnapshot = (sessionRes as any)?.snapshot || sessionRes;
+			const sessionSnapshot = sessionRes.snapshot;
 			if (sessionSnapshot?.resource) {
 				this.mirror.applySnapshot(sessionSnapshot);
 			}
 
 			// Determine target chat URI (server might advertise defaultChat or canonical)
-			const chatUri = (sessionSnapshot?.state as any)?.defaultChat || canonicalChatUri;
+			const sessionState = sessionSnapshot?.state as { defaultChat?: string } | undefined;
+			const chatUri = sessionState?.defaultChat || canonicalChatUri;
 			this.sessionChatUris.set(cleanId, chatUri);
 
 			// Subscribe to chat
 			const { result: chatRes, subscription: chatSub } = await this.client.subscribe(chatUri);
-			const chatSnapshot = (chatRes as any)?.snapshot || chatRes;
+			const chatSnapshot = chatRes.snapshot;
 			if (chatSnapshot?.resource) {
 				this.mirror.applySnapshot(chatSnapshot);
 			}
 
-			const initialChatState = (chatSnapshot?.state || chatSnapshot || {}) as ChatState;
+			const initialChatState = chatSnapshot?.state as ChatState | undefined;
 
 			// Map initial turns and activeTurn
-			const initialTurns = (initialChatState.turns || []).map(mapChatTurnToUiTurn);
-			let currentActiveTurn: UiTurn | undefined = initialChatState.activeTurn
+			const initialTurns = (initialChatState?.turns || []).map(mapChatTurnToUiTurn);
+			let currentActiveTurn: UiTurn | undefined = initialChatState?.activeTurn
 				? mapChatTurnToUiTurn({ ...(initialChatState.activeTurn as any), state: "streaming" })
 				: undefined;
 
 			onUpdate({
 				turns: [...initialTurns],
 				activeTurn: currentActiveTurn,
-				queuedMessages: (initialChatState.queuedMessages || []).map((m: any) => m.message?.text || m.text || ""),
+				queuedMessages: (initialChatState?.queuedMessages || []).map((m: any) => m.message?.text || m.text || ""),
 			});
 
 			let active = true;
