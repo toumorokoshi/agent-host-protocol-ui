@@ -44,6 +44,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Token Sanitizer:** Mask host connection tokens (`tkn=...`) from visible UI displays.
 - [x] **Browser Password Manager & Credential Management API Support:** Standardized form semantic attributes (`autocomplete="username"`, `autocomplete="current-password"`), smart URL query parameter decomposition, and `navigator.credentials.store` / `navigator.credentials.get` integration for Chrome, Safari Keychain, and 1Password.
 - [x] **DOMPurify Sanitization Pipeline:** AST-based HTML and markdown sanitization blocking script tags, dangerous URI schemes, and inline handlers.
+- [x] **Insecure-Context (Plain HTTP) Resilience:** When served over plain HTTP (e.g., LAN / mobile testing), `crypto.subtle` and `crypto.randomUUID()` are unavailable; the vault degrades to memory-only mode with a warning and UUID generation falls back to `crypto.getRandomValues`-based v4 UUIDs, so host connections and session/turn IDs keep working.
 - [ ] **Strict Content Security Policy (CSP) Headers:** Production deployment CSP headers configuration.
 
 ## 6. Auxiliary Tools & Extensions

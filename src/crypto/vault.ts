@@ -27,6 +27,20 @@ class CryptoVault {
 			return;
 		}
 
+		if (!this.webCryptoAvailable()) {
+			// crypto.subtle is only exposed in secure contexts (HTTPS or
+			// localhost). Degrade to memory-only mode so the app stays fully
+			// functional when served over plain HTTP (e.g., LAN / mobile
+			// testing); encryption at rest is simply unavailable there.
+			console.warn(
+				"Web Crypto (crypto.subtle) unavailable in insecure context; vault degraded to memory-only mode. " +
+					"Use HTTPS or localhost to enable encrypted persistence.",
+			);
+			this.mode = "memory-only";
+			this.activeKey = null;
+			return;
+		}
+
 		if (mode === "ephemeral") {
 			this.activeKey = await crypto.subtle.generateKey(
 				{ name: "AES-GCM", length: 256 },
@@ -44,6 +58,10 @@ class CryptoVault {
 
 	isReady(): boolean {
 		return this.mode === "memory-only" || this.activeKey !== null;
+	}
+
+	private webCryptoAvailable(): boolean {
+		return typeof crypto !== "undefined" && typeof crypto.subtle?.generateKey === "function";
 	}
 
 	private getOrCreateSalt(): Uint8Array {

@@ -6,6 +6,7 @@
 import type { AgentInfo, ChatState, RootState, SessionSummary, Turn } from "@microsoft/agent-host-protocol";
 import { AhpClient, AhpStateMirror, type Subscription } from "@microsoft/agent-host-protocol/client";
 import { WebSocketTransport } from "@microsoft/agent-host-protocol/ws";
+import { randomUUID } from "../crypto/uuid.ts";
 import type { ConnectionStatus, HostConfig, ModelInfo, SkillItem, UiSession, UiToolCall, UiTurn } from "../types.ts";
 
 export function pathFromFileUri(uri: string): string {
@@ -93,7 +94,7 @@ export class AhpConnection {
 
 			// Handshake
 			const initResult = await this.client.initialize({
-				clientId: `ahp-ui-${crypto.randomUUID().slice(0, 8)}`,
+				clientId: `ahp-ui-${randomUUID().slice(0, 8)}`,
 				protocolVersions: ["1.0.0", "0.9.0"],
 				initialSubscriptions: ["ahp-root://"],
 			});
@@ -236,7 +237,7 @@ export class AhpConnection {
 			throw new Error("Not connected to a live Agent Host");
 		}
 
-		const sessionId = crypto.randomUUID();
+		const sessionId = randomUUID();
 		const sessionUri = `ahp-session:/${sessionId}`;
 		const fileUri = fileUriFromPath(args.workingDirectory);
 
@@ -508,7 +509,7 @@ export class AhpConnection {
 		const cleanId = extractSessionId(sessionId);
 		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 
-		const turnId = crypto.randomUUID();
+		const turnId = randomUUID();
 		this.client.dispatch(chatUri, {
 			type: "chat/turnStarted",
 			turnId,

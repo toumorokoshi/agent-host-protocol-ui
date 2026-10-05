@@ -40,7 +40,7 @@ To guarantee that no user data is stored in plain text on the user's filesystem 
 Users can select their preferred privacy mode:
 
 1. **Ephemeral (Zero-Knowledge) Mode (Default):**
-   - An ephemeral 256-bit AES key is generated on launch using `crypto.getRandomValues()`.
+   - An ephemeral 256-bit AES key is generated on launch using `crypto.subtle.generateKey()` (AES-GCM-256, non-extractable).
    - The key is retained only in browser memory (`sessionStorage` or runtime variables) and is never written to disk.
    - Any temporary cached data in `localStorage` or `IndexedDB` is encrypted with this ephemeral key.
    - Once the browser tab or session is closed, the key is permanently destroyed, rendering any cached data indecipherable.
@@ -54,6 +54,15 @@ Users can select their preferred privacy mode:
 3. **Memory-Only Mode (Zero Disk Persistence):**
    - Completely disables browser storage (`localStorage` and `IndexedDB`).
    - All session state, host configurations, and history reside strictly in JavaScript memory and vanish on tab close.
+
+### Secure Context Requirements
+
+Browsers expose the full Web Crypto API (`crypto.subtle`) and `crypto.randomUUID()` **only in secure contexts** (HTTPS or `localhost`). When the UI is served over plain HTTP on a network (e.g., LAN / mobile device testing):
+
+- The vault **degrades to Memory-Only mode** at init time with a console warning — the app remains fully functional, but encrypted persistence is unavailable in that context.
+- UUID generation falls back to `crypto.getRandomValues()` (available in all contexts) to assemble spec-compliant v4 UUIDs for client IDs, session URIs, and turn IDs.
+
+Use `localhost` or HTTPS to re-enable encrypted-at-rest storage and native `crypto.randomUUID()`.
 
 ---
 
