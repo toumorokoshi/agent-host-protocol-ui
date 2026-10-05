@@ -247,7 +247,7 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 
 1. **Framework:** Vite + React 19 + TypeScript.
 2. **Protocol SDK:** `@microsoft/agent-host-protocol` (`^1.0.0`) for types, client, reducers, and WebSocket transport.
-3. **Styling:** Vanilla CSS design system with CSS custom properties (CSS variables) for modern dark/light themes, smooth transitions, and glassmorphism accents.
+3. **Styling:** Vanilla CSS design system adhering to standard Visual Studio Code Dark+ and Light+ palettes, with high-contrast semantic token colors (`#4fc1ff` cyan tool and command names, `#1e1e1e` editor canvas, `#252526` sidebar, `#c586c0` reasoning streams, and `#0e639c` buttons) that exceed WCAG AA/AAA contrast guidelines.
 4. **Terminal Emulator:** `@xterm/xterm` + `@xterm/addon-fit` for interactive terminal sessions.
 5. **Markdown & Code Rendering:** Lightweight, secure markdown parser with syntax highlighting.
 6. **Code Quality & Build:** Biome (`@biomejs/biome`) for formatting and linting; `just` for workflow automation.

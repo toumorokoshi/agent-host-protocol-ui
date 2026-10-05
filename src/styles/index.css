@@ -3,48 +3,50 @@
 :root {
 	color-scheme: dark;
 
-	--bg-canvas: #090d16;
-	--bg-sidebar: #0f1422;
-	--bg-surface: #151b2e;
-	--bg-surface-elevated: #1e263f;
-	--bg-surface-hover: #263152;
+	/* VS Code Dark+ Theme Palette */
+	--bg-canvas: #1e1e1e;
+	--bg-sidebar: #252526;
+	--bg-surface: #252526;
+	--bg-surface-elevated: #2d2d2d;
+	--bg-surface-hover: #37373d;
 
-	--border-subtle: #1f293d;
-	--border-default: #2d3748;
-	--border-focused: #6366f1;
+	--border-subtle: #2d2d2d;
+	--border-default: #3e3e42;
+	--border-focused: #007fd4;
 
-	--text-primary: #f1f5f9;
-	--text-secondary: #94a3b8;
-	--text-muted: #64748b;
-	--text-accent: #a5b4fc;
+	--text-primary: #cccccc;
+	--text-secondary: #9da5b4;
+	--text-muted: #858585;
+	--text-accent: #4fc1ff;
+	--tool-name-color: #4fc1ff;
 
-	--color-primary: #6366f1;
-	--color-primary-hover: #4f46e5;
-	--color-primary-light: rgba(99, 102, 241, 0.15);
-	--color-success: #22c55e;
-	--color-success-light: rgba(34, 197, 94, 0.15);
-	--color-warning: #f59e0b;
-	--color-warning-light: rgba(245, 158, 11, 0.15);
-	--color-danger: #ef4444;
-	--color-danger-light: rgba(239, 68, 68, 0.15);
-	--color-purple: #a855f7;
-	--color-purple-light: rgba(168, 85, 247, 0.15);
+	--color-primary: #0e639c;
+	--color-primary-hover: #1177bb;
+	--color-primary-light: rgba(79, 193, 255, 0.15);
+	--color-success: #89d185;
+	--color-success-light: rgba(137, 209, 133, 0.15);
+	--color-warning: #cca700;
+	--color-warning-light: rgba(204, 167, 0, 0.15);
+	--color-danger: #f14c4c;
+	--color-danger-light: rgba(241, 76, 76, 0.15);
+	--color-purple: #c586c0;
+	--color-purple-light: rgba(197, 134, 192, 0.15);
 
 	/* Thinking Stream Tokens */
-	--thinking-bg: rgba(168, 85, 247, 0.15);
-	--thinking-border: rgba(168, 85, 247, 0.3);
-	--thinking-text-summary: #d8b4fe;
-	--thinking-text-content: #e9d5ff;
+	--thinking-bg: rgba(197, 134, 192, 0.12);
+	--thinking-border: rgba(197, 134, 192, 0.35);
+	--thinking-text-summary: #c586c0;
+	--thinking-text-content: #d4d4d4;
 
 	/* Code Block Tokens */
-	--code-pre-bg: #0b0f19;
-	--code-pre-border: var(--border-subtle);
+	--code-pre-bg: #141414;
+	--code-pre-border: #333333;
 	--code-inline-bg: rgba(255, 255, 255, 0.08);
 
 	/* Error & Status Pill Tokens */
-	--error-banner-text: #fca5a5;
-	--pending-pill-bg: rgba(239, 68, 68, 0.2);
-	--pending-pill-color: #fca5a5;
+	--error-banner-text: #f48771;
+	--pending-pill-bg: rgba(241, 76, 76, 0.2);
+	--pending-pill-color: #f48771;
 
 	--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
@@ -54,9 +56,9 @@
 	--radius-lg: 12px;
 	--radius-full: 9999px;
 
-	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
-	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
-	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.45);
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55);
 }
 
 /* ─── Light Mode: automatic if system prefers light, unless data-theme="dark" ─── */
@@ -64,49 +66,51 @@
 	:root:not([data-theme="dark"]) {
 		color-scheme: light;
 
-		--bg-canvas: #f8fafc;
-		--bg-sidebar: #f1f5f9;
+		/* VS Code Light+ Theme Palette */
+		--bg-canvas: #ffffff;
+		--bg-sidebar: #f3f3f3;
 		--bg-surface: #ffffff;
-		--bg-surface-elevated: #ffffff;
-		--bg-surface-hover: #e2e8f0;
+		--bg-surface-elevated: #f8f8f8;
+		--bg-surface-hover: #e8e8e8;
 
-		--border-subtle: #e2e8f0;
-		--border-default: #cbd5e1;
-		--border-focused: #4f46e5;
+		--border-subtle: #e5e5e5;
+		--border-default: #cecece;
+		--border-focused: #007acc;
 
-		--text-primary: #0f172a;
-		--text-secondary: #334155;
-		--text-muted: #64748b;
-		--text-accent: #4f46e5;
+		--text-primary: #1e1e1e;
+		--text-secondary: #616161;
+		--text-muted: #767676;
+		--text-accent: #0066b8;
+		--tool-name-color: #0066b8;
 
-		--color-primary: #4f46e5;
-		--color-primary-hover: #4338ca;
-		--color-primary-light: rgba(79, 70, 229, 0.1);
-		--color-success: #16a34a;
-		--color-success-light: rgba(22, 163, 74, 0.12);
-		--color-warning: #d97706;
-		--color-warning-light: rgba(217, 119, 6, 0.12);
-		--color-danger: #dc2626;
-		--color-danger-light: rgba(220, 38, 38, 0.1);
-		--color-purple: #9333ea;
-		--color-purple-light: rgba(147, 51, 234, 0.1);
+		--color-primary: #007acc;
+		--color-primary-hover: #0062a3;
+		--color-primary-light: rgba(0, 122, 204, 0.1);
+		--color-success: #388a34;
+		--color-success-light: rgba(56, 138, 52, 0.12);
+		--color-warning: #bf8803;
+		--color-warning-light: rgba(191, 136, 3, 0.12);
+		--color-danger: #e51400;
+		--color-danger-light: rgba(229, 20, 0, 0.1);
+		--color-purple: #af00db;
+		--color-purple-light: rgba(175, 0, 219, 0.08);
 
-		--thinking-bg: rgba(147, 51, 234, 0.08);
-		--thinking-border: rgba(147, 51, 234, 0.25);
-		--thinking-text-summary: #6b21a8;
-		--thinking-text-content: #581c87;
+		--thinking-bg: rgba(175, 0, 219, 0.06);
+		--thinking-border: rgba(175, 0, 219, 0.25);
+		--thinking-text-summary: #af00db;
+		--thinking-text-content: #24292f;
 
-		--code-pre-bg: #f8fafc;
-		--code-pre-border: #e2e8f0;
-		--code-inline-bg: rgba(0, 0, 0, 0.06);
+		--code-pre-bg: #f8f8f8;
+		--code-pre-border: #e1e4e8;
+		--code-inline-bg: rgba(27, 31, 35, 0.06);
 
-		--error-banner-text: #b91c1c;
-		--pending-pill-bg: rgba(220, 38, 38, 0.12);
-		--pending-pill-color: #b91c1c;
+		--error-banner-text: #d73a49;
+		--pending-pill-bg: rgba(229, 20, 0, 0.1);
+		--pending-pill-color: #d73a49;
 
-		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-		--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+		--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12);
 	}
 }
 
@@ -114,98 +118,102 @@
 :root[data-theme="light"] {
 	color-scheme: light;
 
-	--bg-canvas: #f8fafc;
-	--bg-sidebar: #f1f5f9;
+	/* VS Code Light+ Theme Palette */
+	--bg-canvas: #ffffff;
+	--bg-sidebar: #f3f3f3;
 	--bg-surface: #ffffff;
-	--bg-surface-elevated: #ffffff;
-	--bg-surface-hover: #e2e8f0;
+	--bg-surface-elevated: #f8f8f8;
+	--bg-surface-hover: #e8e8e8;
 
-	--border-subtle: #e2e8f0;
-	--border-default: #cbd5e1;
-	--border-focused: #4f46e5;
+	--border-subtle: #e5e5e5;
+	--border-default: #cecece;
+	--border-focused: #007acc;
 
-	--text-primary: #0f172a;
-	--text-secondary: #334155;
-	--text-muted: #64748b;
-	--text-accent: #4f46e5;
+	--text-primary: #1e1e1e;
+	--text-secondary: #616161;
+	--text-muted: #767676;
+	--text-accent: #0066b8;
+	--tool-name-color: #0066b8;
 
-	--color-primary: #4f46e5;
-	--color-primary-hover: #4338ca;
-	--color-primary-light: rgba(79, 70, 229, 0.1);
-	--color-success: #16a34a;
-	--color-success-light: rgba(22, 163, 74, 0.12);
-	--color-warning: #d97706;
-	--color-warning-light: rgba(217, 119, 6, 0.12);
-	--color-danger: #dc2626;
-	--color-danger-light: rgba(220, 38, 38, 0.1);
-	--color-purple: #9333ea;
-	--color-purple-light: rgba(147, 51, 234, 0.1);
+	--color-primary: #007acc;
+	--color-primary-hover: #0062a3;
+	--color-primary-light: rgba(0, 122, 204, 0.1);
+	--color-success: #388a34;
+	--color-success-light: rgba(56, 138, 52, 0.12);
+	--color-warning: #bf8803;
+	--color-warning-light: rgba(191, 136, 3, 0.12);
+	--color-danger: #e51400;
+	--color-danger-light: rgba(229, 20, 0, 0.1);
+	--color-purple: #af00db;
+	--color-purple-light: rgba(175, 0, 219, 0.08);
 
-	--thinking-bg: rgba(147, 51, 234, 0.08);
-	--thinking-border: rgba(147, 51, 234, 0.25);
-	--thinking-text-summary: #6b21a8;
-	--thinking-text-content: #581c87;
+	--thinking-bg: rgba(175, 0, 219, 0.06);
+	--thinking-border: rgba(175, 0, 219, 0.25);
+	--thinking-text-summary: #af00db;
+	--thinking-text-content: #24292f;
 
-	--code-pre-bg: #f8fafc;
-	--code-pre-border: #e2e8f0;
-	--code-inline-bg: rgba(0, 0, 0, 0.06);
+	--code-pre-bg: #f8f8f8;
+	--code-pre-border: #e1e4e8;
+	--code-inline-bg: rgba(27, 31, 35, 0.06);
 
-	--error-banner-text: #b91c1c;
-	--pending-pill-bg: rgba(220, 38, 38, 0.12);
-	--pending-pill-color: #b91c1c;
+	--error-banner-text: #d73a49;
+	--pending-pill-bg: rgba(229, 20, 0, 0.1);
+	--pending-pill-color: #d73a49;
 
-	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12);
 }
 
 /* ─── Explicit Dark Mode override ─── */
 :root[data-theme="dark"] {
 	color-scheme: dark;
 
-	--bg-canvas: #090d16;
-	--bg-sidebar: #0f1422;
-	--bg-surface: #151b2e;
-	--bg-surface-elevated: #1e263f;
-	--bg-surface-hover: #263152;
+	/* VS Code Dark+ Theme Palette */
+	--bg-canvas: #1e1e1e;
+	--bg-sidebar: #252526;
+	--bg-surface: #252526;
+	--bg-surface-elevated: #2d2d2d;
+	--bg-surface-hover: #37373d;
 
-	--border-subtle: #1f293d;
-	--border-default: #2d3748;
-	--border-focused: #6366f1;
+	--border-subtle: #2d2d2d;
+	--border-default: #3e3e42;
+	--border-focused: #007fd4;
 
-	--text-primary: #f1f5f9;
-	--text-secondary: #94a3b8;
-	--text-muted: #64748b;
-	--text-accent: #a5b4fc;
+	--text-primary: #cccccc;
+	--text-secondary: #9da5b4;
+	--text-muted: #858585;
+	--text-accent: #4fc1ff;
+	--tool-name-color: #4fc1ff;
 
-	--color-primary: #6366f1;
-	--color-primary-hover: #4f46e5;
-	--color-primary-light: rgba(99, 102, 241, 0.15);
-	--color-success: #22c55e;
-	--color-success-light: rgba(34, 197, 94, 0.15);
-	--color-warning: #f59e0b;
-	--color-warning-light: rgba(245, 158, 11, 0.15);
-	--color-danger: #ef4444;
-	--color-danger-light: rgba(239, 68, 68, 0.15);
-	--color-purple: #a855f7;
-	--color-purple-light: rgba(168, 85, 247, 0.15);
+	--color-primary: #0e639c;
+	--color-primary-hover: #1177bb;
+	--color-primary-light: rgba(79, 193, 255, 0.15);
+	--color-success: #89d185;
+	--color-success-light: rgba(137, 209, 133, 0.15);
+	--color-warning: #cca700;
+	--color-warning-light: rgba(204, 167, 0, 0.15);
+	--color-danger: #f14c4c;
+	--color-danger-light: rgba(241, 76, 76, 0.15);
+	--color-purple: #c586c0;
+	--color-purple-light: rgba(197, 134, 192, 0.15);
 
-	--thinking-bg: rgba(168, 85, 247, 0.15);
-	--thinking-border: rgba(168, 85, 247, 0.3);
-	--thinking-text-summary: #d8b4fe;
-	--thinking-text-content: #e9d5ff;
+	--thinking-bg: rgba(197, 134, 192, 0.12);
+	--thinking-border: rgba(197, 134, 192, 0.35);
+	--thinking-text-summary: #c586c0;
+	--thinking-text-content: #d4d4d4;
 
-	--code-pre-bg: #0b0f19;
-	--code-pre-border: var(--border-subtle);
+	--code-pre-bg: #141414;
+	--code-pre-border: #333333;
 	--code-inline-bg: rgba(255, 255, 255, 0.08);
 
-	--error-banner-text: #fca5a5;
-	--pending-pill-bg: rgba(239, 68, 68, 0.2);
-	--pending-pill-color: #fca5a5;
+	--error-banner-text: #f48771;
+	--pending-pill-bg: rgba(241, 76, 76, 0.2);
+	--pending-pill-color: #f48771;
 
-	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
-	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
-	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.45);
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -385,13 +393,13 @@ body {
 }
 
 .btn-secondary {
-	background-color: var(--bg-surface);
+	background-color: var(--bg-surface-elevated);
 	color: var(--text-primary);
-	border-color: var(--border-default);
+	border: 1px solid var(--border-default);
 }
 
 .btn-secondary:hover {
-	background-color: var(--bg-surface-elevated);
+	background-color: var(--bg-surface-hover);
 }
 
 .btn-danger {
@@ -431,8 +439,8 @@ body {
 
 .search-input {
 	width: 100%;
-	background-color: var(--bg-surface);
-	border: 1px solid var(--border-subtle);
+	background-color: var(--bg-canvas);
+	border: 1px solid var(--border-default);
 	color: var(--text-primary);
 	padding: 6px 10px;
 	border-radius: var(--radius-sm);
@@ -442,6 +450,7 @@ body {
 
 .search-input:focus {
 	border-color: var(--border-focused);
+	box-shadow: 0 0 0 1px var(--border-focused);
 }
 
 .sessions-container {
@@ -667,7 +676,8 @@ body {
 	align-items: center;
 	gap: 6px;
 	font-family: var(--font-mono);
-	color: var(--color-primary);
+	font-weight: 600;
+	color: var(--tool-name-color, var(--text-accent));
 }
 
 .tool-status-pill {
