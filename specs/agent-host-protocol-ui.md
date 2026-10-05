@@ -449,7 +449,7 @@ Users have complete autonomy to choose their preferred security tier or use them
 
 - **Milestone 2: Session Explorer & Creation**
   - Render sidebar with live and archived sessions.
-  - Implement session creation dialog with working directory quick-selection from existing sessions and host default, custom directory input fallback ("Other..."), and model resolution.
+  - Implement session creation dialog with working directory quick-selection sorted by most recent session first, clean path labels without session titles, custom directory input fallback ("Other..."), and model resolution.
   - Implement session renaming and disposal.
 
 - **Milestone 3: Chat Timeline & Message Streaming**

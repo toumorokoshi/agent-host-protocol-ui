@@ -6,41 +6,53 @@ export interface DirectoryOption {
 
 /**
  * Extracts a deduplicated list of candidate working directories from host default
- * and existing agent sessions, annotating them with helpful source labels.
+ * and existing agent sessions, sorted in order of directory with most recent session first.
  */
 export function extractDirectoryOptions(
 	defaultDirectory?: string,
-	sessions?: Array<{ workingDirectory?: string; title?: string }>,
+	sessions?: Array<{ workingDirectory?: string; title?: string; modifiedAt?: string }>,
 ): DirectoryOption[] {
-	const options: DirectoryOption[] = [];
-	const seen = new Set<string>();
+	const dirTimestamps = new Map<string, number>();
+	const allDirs = new Set<string>();
 
 	const cleanDefault = defaultDirectory?.trim();
 	if (cleanDefault) {
-		seen.add(cleanDefault);
-		options.push({
-			path: cleanDefault,
-			label: `${cleanDefault} (Host Default)`,
-			source: "default",
-		});
+		allDirs.add(cleanDefault);
+		dirTimestamps.set(cleanDefault, 0);
 	}
 
 	if (sessions && Array.isArray(sessions)) {
 		for (const session of sessions) {
 			const cleanPath = session.workingDirectory?.trim();
-			if (!cleanPath || seen.has(cleanPath)) continue;
+			if (!cleanPath) continue;
 
-			seen.add(cleanPath);
-			const title = session.title?.trim();
-			const hasDescriptiveTitle = Boolean(title && title !== "New Agent Session");
+			allDirs.add(cleanPath);
 
-			options.push({
-				path: cleanPath,
-				label: hasDescriptiveTitle ? `${cleanPath} (${title})` : cleanPath,
-				source: "session",
-			});
+			const rawTime = session.modifiedAt ? new Date(session.modifiedAt).getTime() : 0;
+			const time = Number.isNaN(rawTime) ? 0 : rawTime;
+			const existingTime = dirTimestamps.get(cleanPath) ?? -1;
+
+			if (time > existingTime) {
+				dirTimestamps.set(cleanPath, time);
+			}
 		}
 	}
 
-	return options;
+	const sortedDirs = Array.from(allDirs).sort((a, b) => {
+		const timeA = dirTimestamps.get(a) ?? -1;
+		const timeB = dirTimestamps.get(b) ?? -1;
+		if (timeB !== timeA) {
+			return timeB - timeA; // Descending: most recent session first
+		}
+		return a.localeCompare(b);
+	});
+
+	return sortedDirs.map((dir) => {
+		const isDefault = Boolean(cleanDefault && dir === cleanDefault);
+		return {
+			path: dir,
+			label: isDefault ? `${dir} (Host Default)` : dir,
+			source: isDefault ? "default" : "session",
+		};
+	});
 }
