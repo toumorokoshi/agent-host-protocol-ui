@@ -57,3 +57,11 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **VS Code Dark+ Palette & Contrast Optimization:** Standardized dark palette to standard VS Code Dark+ (`#1e1e1e` editor canvas, `#252526` sidebar) with high-contrast `#4fc1ff` cyan tool names and command identifiers meeting WCAG AAA.
 - [ ] **Custom Theme Accents:** User-customizable accent colors and IDE syntax highlighting themes.
 
+## 8. Mobile & Responsive Layout
+- [x] **Mobile Viewport Optimization:** Native dynamic viewport (`100dvh`), iOS bounce/rubberband prevention, and safe-area inset (`env(safe-area-inset-bottom)`) support.
+- [x] **Slide-Over Navigation Drawer:** Off-canvas sessions sidebar drawer with backdrop blur, hamburger menu toggle, and auto-close on session selection.
+- [x] **Mobile Inspector Drawer:** Off-canvas slide-over drawer for skills, queue, and diagnostics on small viewports.
+- [x] **Touch-Friendly Controls:** Minimum 44px touch targets, mobile-optimized header buttons, and 16px font sizing preventing iOS Safari auto-zoom on input focus.
+- [ ] **Swipe Gesture Support:** Swipe from left screen edge to open sidebar drawer and swipe right to dismiss.
+
+

@@ -30,7 +30,10 @@ export const App: React.FC = () => {
 	const [activeTurn, setActiveTurn] = useState<UiTurn | undefined>(undefined);
 	const [isHostModalOpen, setIsHostModalOpen] = useState(false);
 	const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
-	const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+	const [isInspectorOpen, setIsInspectorOpen] = useState(
+		() => typeof window !== "undefined" && window.innerWidth > 768,
+	);
+	const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
 	// Remote metadata
 	const [remoteDefaultDir, setRemoteDefaultDir] = useState<string>("");
@@ -451,12 +454,15 @@ export const App: React.FC = () => {
 				onOpenHostModal={() => setIsHostModalOpen(true)}
 				onNewSession={() => setIsNewSessionModalOpen(true)}
 				onToggleMockMode={handleToggleMockMode}
+				onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
 			/>
 
 			<div className="workspace-layout">
 				<Sidebar
 					sessions={sessions}
 					activeSessionId={activeSessionId}
+					isOpen={isMobileSidebarOpen}
+					onClose={() => setIsMobileSidebarOpen(false)}
 					onSelectSession={handleSelectSession}
 					onDisposeSession={handleDisposeSession}
 					onRenameSession={handleRenameSession}
@@ -467,22 +473,54 @@ export const App: React.FC = () => {
 						<>
 							<div className="chat-header">
 								<div className="chat-header-info">
-									<div className="chat-title">{activeSession.title}</div>
+									<div className="chat-title-row">
+										<button
+											type="button"
+											className="chat-mobile-sidebar-btn"
+											onClick={() => setIsMobileSidebarOpen(true)}
+											title="View Sessions"
+											aria-label="View sessions"
+										>
+											<svg
+												width="14"
+												height="14"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												strokeWidth="2.2"
+											>
+												<line x1="3" y1="12" x2="21" y2="12" />
+												<line x1="3" y1="6" x2="21" y2="6" />
+												<line x1="3" y1="18" x2="21" y2="18" />
+											</svg>
+											<span>Sessions ({sessions.length})</span>
+										</button>
+										<div className="chat-title">{activeSession.title}</div>
+									</div>
 									<div className="chat-meta">
-										<span className="chat-meta-item">📁 {activeSession.workingDirectory}</span>
-										<span className="chat-meta-item">⚡ {activeSession.model}</span>
+										<span className="chat-meta-item" title={activeSession.workingDirectory}>
+											📁 {activeSession.workingDirectory.split("/").pop() || "workspace"}
+										</span>
+										<span className="chat-meta-item">⚡ {activeSession.model.split("/").pop()}</span>
 										<span className="chat-meta-item">🧠 Thinking: {activeSession.thinkingLevel}</span>
 									</div>
 								</div>
 
-								<div>
+								<div className="chat-header-actions">
 									<button
 										type="button"
-										className="btn btn-secondary"
-										style={{ padding: "4px 10px", fontSize: "12px" }}
+										className="btn btn-secondary chat-inspector-btn"
+										style={{ padding: "5px 10px", fontSize: "12px", whiteSpace: "nowrap" }}
 										onClick={() => setIsInspectorOpen((prev) => !prev)}
+										title="Toggle Session Inspector"
 									>
-										{isInspectorOpen ? "Hide Inspector" : "Show Inspector"}
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<circle cx="12" cy="12" r="10" />
+											<line x1="12" y1="16" x2="12" y2="12" />
+											<line x1="12" y1="8" x2="12.01" y2="8" />
+										</svg>
+										<span className="btn-text-full">{isInspectorOpen ? "Hide Inspector" : "Show Inspector"}</span>
+										<span className="btn-text-short">{isInspectorOpen ? "Close" : "Info"}</span>
 									</button>
 								</div>
 							</div>
