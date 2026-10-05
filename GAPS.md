@@ -15,6 +15,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Session Catalog:** Real remote session listing with search filter, active session selection, and modified timestamps.
 - [x] **Live Session Indicators:** Visual distinction for live bridged TUI sessions with pulsing status badges.
 - [x] **Remote Host Data in New Session Modal:** Dynamically populates working directory dropdown with quick-selection sorted by most recent session first, clean path labels (omitting session names), host `defaultDirectory`, an "Other" option for hand-populating custom directory paths, and models from `rootState.agents`.
+- [x] **Working Directory Full-Path Tooltip:** Hovering over the working directory folder badge in Live and Recent sessions (as well as the active session header and inspector) displays the full absolute directory path in a portal-rendered, viewport-clamped tooltip. Safely handles trailing slashes without falling back to "workspace".
 - [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions via remote `disposeSession` RPC.
 
 ## 3. Conversational Timeline & Streaming

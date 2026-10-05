@@ -10,12 +10,14 @@ import { HostModal } from "./components/HostModal.tsx";
 import { Inspector } from "./components/Inspector.tsx";
 import { NewSessionModal } from "./components/NewSessionModal.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
+import { Tooltip } from "./components/Tooltip.tsx";
 import { UnlockVaultModal } from "./components/UnlockVaultModal.tsx";
 import { clearStoredVault, hasStoredVault, saveAppConfiguration, unlockAppConfiguration } from "./crypto/app-config.ts";
 import { randomUUID } from "./crypto/uuid.ts";
 import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
 import { useTheme } from "./hooks/useTheme.ts";
 import type { AppConfiguration, ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
+import { formatDirectoryBase, formatDirectoryTooltip } from "./utils/format-session-dir.ts";
 
 export const App: React.FC = () => {
 	const { themePreference, resolvedTheme, setTheme } = useTheme();
@@ -576,9 +578,11 @@ export const App: React.FC = () => {
 										<div className="chat-title">{activeSession.title}</div>
 									</div>
 									<div className="chat-meta">
-										<span className="chat-meta-item" title={activeSession.workingDirectory}>
-											📁 {activeSession.workingDirectory.split("/").pop() || "workspace"}
-										</span>
+										<Tooltip content={formatDirectoryTooltip(activeSession.workingDirectory)}>
+											<span className="chat-meta-item" style={{ cursor: "pointer" }}>
+												📁 {formatDirectoryBase(activeSession.workingDirectory)}
+											</span>
+										</Tooltip>
 										<span className="chat-meta-item">⚡ {activeSession.model.split("/").pop()}</span>
 										<span className="chat-meta-item">🧠 Thinking: {activeSession.thinkingLevel}</span>
 									</div>

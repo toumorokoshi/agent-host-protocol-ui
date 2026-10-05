@@ -1,6 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import type { SkillItem, UiSession } from "../types.ts";
+import { Tooltip } from "./Tooltip.tsx";
 
 interface InspectorProps {
 	session: UiSession | null;
@@ -130,8 +131,10 @@ export const Inspector: React.FC<InspectorProps> = ({ session, onRemoveQueuedMes
 							</div>
 							<div>
 								<strong style={{ color: "var(--text-primary)" }}>Working Directory:</strong>
-								<div style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
-									{session?.workingDirectory}
+								<div style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)", wordBreak: "break-all" }}>
+									<Tooltip content={session?.workingDirectory}>
+										<span style={{ cursor: "pointer" }}>{session?.workingDirectory}</span>
+									</Tooltip>
 								</div>
 							</div>
 							<div>

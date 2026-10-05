@@ -199,6 +199,7 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 - **Section 2: Saved / Recent Sessions:**
   - Paginated list populated via `listSessions`.
   - Display of relative time (e.g., "5m ago", "Yesterday").
+  - Working directory chip with full directory path shown on hover via viewport-clamped floating tooltip.
 - **Session Item Context Menu / Actions:**
   - Rename session (`session/titleChanged`).
   - Archive / Unarchive (`session/isArchivedChanged`).
@@ -207,7 +208,7 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 ### 4.3 Center Panel: Chat Timeline
 - **Session Header Banner:**
   - Editable Session Title.
-  - Working directory chip with folder icon.
+  - Working directory chip with folder icon and hover tooltip displaying full absolute directory path.
   - Model & Thinking Level selector dropdown.
   - Active turn status indicator (Idle, Generating, Awaiting Approval, Error).
 - **Timeline Items:**

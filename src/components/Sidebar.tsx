@@ -1,6 +1,8 @@
 import type React from "react";
 import { useState } from "react";
 import type { UiSession } from "../types.ts";
+import { formatDirectoryBase, formatDirectoryTooltip } from "../utils/format-session-dir.ts";
+import { Tooltip } from "./Tooltip.tsx";
 
 interface SidebarProps {
 	sessions: UiSession[];
@@ -79,9 +81,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 										<span className="live-badge">Live</span>
 									</div>
 									<div className="session-meta">
-										<span title={session.workingDirectory}>
-											{session.workingDirectory.split("/").pop() || "workspace"}
-										</span>
+										<Tooltip content={formatDirectoryTooltip(session.workingDirectory)}>
+											<span className="session-dir">📁 {formatDirectoryBase(session.workingDirectory)}</span>
+										</Tooltip>
 										<span>•</span>
 										<span>{session.model.split("/").pop()}</span>
 									</div>
@@ -144,9 +146,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 									</div>
 								</div>
 								<div className="session-meta">
-									<span title={session.workingDirectory}>
-										{session.workingDirectory.split("/").pop() || "workspace"}
-									</span>
+									<Tooltip content={formatDirectoryTooltip(session.workingDirectory)}>
+										<span className="session-dir">📁 {formatDirectoryBase(session.workingDirectory)}</span>
+									</Tooltip>
 									<span>•</span>
 									<span>
 										{new Date(session.modifiedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
