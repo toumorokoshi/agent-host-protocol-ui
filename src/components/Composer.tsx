@@ -71,11 +71,7 @@ export const Composer: React.FC<ComposerProps> = ({
 	};
 
 	const handleSend = () => {
-		if (!text.trim() && !isStreaming) return;
-		if (isStreaming && !isSteering) {
-			onCancelTurn();
-			return;
-		}
+		if (!text.trim()) return;
 		onSendMessage(text.trim(), isSteering);
 		setText("");
 		setIsSteering(false);
@@ -152,26 +148,31 @@ export const Composer: React.FC<ComposerProps> = ({
 						<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>🔒 Private Draft</span>
 					</div>
 
-					<div>
-						{isStreaming && !isSteering ? (
-							<button type="button" className="btn btn-danger composer-action-btn" onClick={onCancelTurn}>
+					<div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+						{isStreaming && (
+							<button
+								type="button"
+								className="btn btn-danger composer-action-btn"
+								onClick={onCancelTurn}
+								title="Stop in-flight turn"
+							>
 								<span style={{ width: "8px", height: "8px", backgroundColor: "currentColor", borderRadius: "1px" }} />
 								<span>Stop</span>
 							</button>
-						) : (
-							<button
-								type="button"
-								className="btn btn-primary composer-action-btn"
-								onClick={handleSend}
-								disabled={!text.trim()}
-							>
-								<span>{isSteering ? "Steer" : isStreaming ? "Queue" : "Send"}</span>
-								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-									<line x1="22" y1="2" x2="11" y2="13" />
-									<polygon points="22 2 15 22 11 13 2 9 22 2" />
-								</svg>
-							</button>
 						)}
+
+						<button
+							type="button"
+							className="btn btn-primary composer-action-btn"
+							onClick={handleSend}
+							disabled={!text.trim()}
+						>
+							<span>{isSteering ? "Steer" : isStreaming ? "Queue" : "Send"}</span>
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+								<line x1="22" y1="2" x2="11" y2="13" />
+								<polygon points="22 2 15 22 11 13 2 9 22 2" />
+							</svg>
+						</button>
 					</div>
 				</div>
 			</div>

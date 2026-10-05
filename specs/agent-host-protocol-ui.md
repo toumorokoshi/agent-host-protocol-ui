@@ -69,7 +69,7 @@ The VS Code Agents View represents Microsoft's architecture for decoupling agent
 - **Smart Textarea:** Autosizing input with multiline support (`Shift+Enter` for newline, `Enter` to send).
 - **Slash Commands Autocomplete (`/`):** Triggered on typing `/` at the start of input; invokes the `completions` RPC on the host to list available skills, prompt templates, and commands (e.g., `/ahp`, `/commit`, `/review`).
 - **In-flight Turn Controls:**
-  - **Abort / Stop:** Immediate turn cancellation (`chat/turnCancelled`) displayed prominently while a turn is active.
+  - **Abort / Stop:** Immediate turn cancellation (`chat/turnCancelled`) with matched active `turnId`, elapsed duration, and immediate optimistic state resolution displayed prominently while a turn is active.
   - **Steering Messages:** Ability to submit guidance *while* a turn is running (`chat/pendingMessageSet` with `kind: steering`) to steer the model without aborting.
   - **Queued Messages:** Ability to queue follow-up prompts (`kind: queued`) that execute sequentially once the active turn completes.
   - **Queue Drawer / Manager:** Visual list of queued messages with drag-to-reorder (`chat/queuedMessagesReordered`) and delete capabilities (`chat/pendingMessageRemoved`).

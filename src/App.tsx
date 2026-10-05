@@ -10,6 +10,7 @@ import { HostModal } from "./components/HostModal.tsx";
 import { Inspector } from "./components/Inspector.tsx";
 import { NewSessionModal } from "./components/NewSessionModal.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
+import { randomUUID } from "./crypto/uuid.ts";
 import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
 import { useTheme } from "./hooks/useTheme.ts";
 import type { ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
@@ -197,9 +198,10 @@ export const App: React.FC = () => {
 				await ahpConnection.steerTurn(activeSession.id, text);
 				return;
 			}
+			const turnId = randomUUID();
 			// Optimistically set activeTurn so the prompt immediately renders in the timeline
 			setActiveTurn({
-				id: `turn-${Date.now()}`,
+				id: turnId,
 				userPrompt: text,
 				startedAt: new Date().toISOString(),
 				model: activeSession.model,
@@ -207,7 +209,7 @@ export const App: React.FC = () => {
 				toolCalls: [],
 				state: "streaming",
 			});
-			await ahpConnection.sendMessage(activeSession.id, text, activeSession.model);
+			await ahpConnection.sendMessage(activeSession.id, text, activeSession.model, turnId);
 			return;
 		}
 
@@ -288,19 +290,24 @@ export const App: React.FC = () => {
 	};
 
 	const handleCancelTurn = async () => {
-		if (!isMockMode && connectionStatus === "connected" && activeSession) {
-			await ahpConnection.cancelTurn(activeSession.id, activeTurn?.id);
+		const targetSessionId = activeSession?.id || activeSessionId;
+		const turnToCancel = activeTurn;
+
+		// Immediately update local UI so the stop action feels instant and responsive
+		if (turnToCancel && targetSessionId) {
+			const cancelled: UiTurn = { ...turnToCancel, state: "cancelled" as const };
+			setSessions((prev) => prev.map((s) => (s.id === targetSessionId ? { ...s, turns: [...s.turns, cancelled] } : s)));
+			setActiveTurn(undefined);
+		}
+
+		if (!isMockMode && connectionStatus === "connected" && targetSessionId) {
+			await ahpConnection.cancelTurn(targetSessionId, turnToCancel?.id);
 			return;
 		}
 
 		if (cancelMockStreamRef.current) {
 			cancelMockStreamRef.current();
 			cancelMockStreamRef.current = null;
-		}
-		if (activeTurn) {
-			const cancelled = { ...activeTurn, state: "cancelled" as const };
-			setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, turns: [...s.turns, cancelled] } : s)));
-			setActiveTurn(undefined);
 		}
 	};
 

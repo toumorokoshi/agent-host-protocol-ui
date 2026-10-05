@@ -34,7 +34,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Composer Input:** Autosizing multiline textarea with `Enter` to submit and `Shift+Enter` for newline.
 - [x] **Private Drafting by Default:** Keystrokes buffered strictly in local memory; unsolicited draft broadcasts disabled.
 - [x] **Slash Command Autocomplete:** Popover triggered by `/` completing skills, commands, and prompt templates (querying remote `completions` RPC in live mode).
-- [x] **Turn Execution Controls:** Prominent Stop / Abort button dispatching `chat/turnCancelled`.
+- [x] **Turn Execution Controls:** Prominent Stop / Abort button dispatching `chat/turnCancelled` with matching active `turnId`, duration, optimistic local UI cancellation, and dedicated queue/steer button support during streaming.
 - [x] **Steering Messages:** In-flight steering toggle to adjust direction mid-turn without aborting via `chat/pendingMessageSet`.
 - [x] **Queued Messages Manager:** Enqueue follow-up prompts, view queue, and remove items from queue.
 

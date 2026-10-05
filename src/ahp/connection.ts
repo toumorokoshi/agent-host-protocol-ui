@@ -47,6 +47,8 @@ export class AhpConnection {
 	private remoteModels: ModelInfo[] = [];
 	private activeSubscriptions = new Map<string, Subscription>();
 	private sessionChatUris = new Map<string, string>();
+	private activeTurnIds = new Map<string, string>();
+	private activeTurnStartTimes = new Map<string, number>();
 
 	getStatus(): ConnectionStatus {
 		return this.status;
@@ -330,17 +332,26 @@ export class AhpConnection {
 							const actionType = String(action.type);
 
 							if (actionType === "chat/turnStarted") {
+								const turnId = action.turnId || this.activeTurnIds.get(cleanId) || randomUUID();
+								this.activeTurnIds.set(cleanId, turnId);
+								if (!this.activeTurnStartTimes.has(cleanId)) {
+									this.activeTurnStartTimes.set(cleanId, Date.now());
+								}
 								currentActiveTurn = {
-									id: action.turnId || `turn-${Date.now()}`,
-									userPrompt: action.message?.text || "",
+									id: turnId,
+									userPrompt: action.message?.text || currentActiveTurn?.userPrompt || "",
 									startedAt: action.startedAt || new Date().toISOString(),
-									model: action.message?.model?.id,
+									model: action.message?.model?.id || currentActiveTurn?.model,
 									assistantText: "",
 									toolCalls: [],
 									state: "streaming",
 								};
 								onUpdate({ activeTurn: currentActiveTurn });
 							} else if (actionType === "chat/responsePart") {
+								if (action.turnId) {
+									this.activeTurnIds.set(cleanId, action.turnId);
+									if (currentActiveTurn) currentActiveTurn.id = action.turnId;
+								}
 								if (currentActiveTurn && action.part) {
 									if (action.part.kind === "markdown") {
 										currentActiveTurn = {
@@ -448,6 +459,8 @@ export class AhpConnection {
 									onUpdate({ activeTurn: currentActiveTurn });
 								}
 							} else if (actionType === "chat/turnComplete") {
+								this.activeTurnIds.delete(cleanId);
+								this.activeTurnStartTimes.delete(cleanId);
 								if (currentActiveTurn) {
 									const completedTurn: UiTurn = {
 										...currentActiveTurn,
@@ -457,8 +470,12 @@ export class AhpConnection {
 									initialTurns.push(completedTurn);
 									currentActiveTurn = undefined;
 									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								} else {
+									onUpdate({ activeTurn: undefined });
 								}
 							} else if (actionType === "chat/error") {
+								this.activeTurnIds.delete(cleanId);
+								this.activeTurnStartTimes.delete(cleanId);
 								if (currentActiveTurn) {
 									const errTurn: UiTurn = {
 										...currentActiveTurn,
@@ -470,8 +487,12 @@ export class AhpConnection {
 									initialTurns.push(errTurn);
 									currentActiveTurn = undefined;
 									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								} else {
+									onUpdate({ activeTurn: undefined });
 								}
 							} else if (actionType === "chat/turnCancelled") {
+								this.activeTurnIds.delete(cleanId);
+								this.activeTurnStartTimes.delete(cleanId);
 								if (currentActiveTurn) {
 									const cancelledTurn: UiTurn = {
 										...currentActiveTurn,
@@ -481,6 +502,8 @@ export class AhpConnection {
 									initialTurns.push(cancelledTurn);
 									currentActiveTurn = undefined;
 									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								} else {
+									onUpdate({ activeTurn: undefined });
 								}
 							}
 						}
@@ -504,12 +527,15 @@ export class AhpConnection {
 	/**
 	 * Send a user message to trigger a turn.
 	 */
-	async sendMessage(sessionId: string, text: string, model: string): Promise<void> {
-		if (!this.client) return;
+	async sendMessage(sessionId: string, text: string, model: string, explicitTurnId?: string): Promise<string> {
+		if (!this.client) return "";
 		const cleanId = extractSessionId(sessionId);
 		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 
-		const turnId = randomUUID();
+		const turnId = explicitTurnId || randomUUID();
+		this.activeTurnIds.set(cleanId, turnId);
+		this.activeTurnStartTimes.set(cleanId, Date.now());
+
 		this.client.dispatch(chatUri, {
 			type: "chat/turnStarted",
 			turnId,
@@ -520,6 +546,8 @@ export class AhpConnection {
 				model: { id: model },
 			},
 		} as any);
+
+		return turnId;
 	}
 
 	/**
@@ -529,9 +557,18 @@ export class AhpConnection {
 		if (!this.client) return;
 		const cleanId = extractSessionId(sessionId);
 		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
+
+		const targetTurnId = turnId || this.activeTurnIds.get(cleanId) || "";
+		const startTime = this.activeTurnStartTimes.get(cleanId) || Date.now();
+		const duration = Math.max(0, Date.now() - startTime);
+
+		this.activeTurnIds.delete(cleanId);
+		this.activeTurnStartTimes.delete(cleanId);
+
 		this.client.dispatch(chatUri, {
 			type: "chat/turnCancelled",
-			turnId,
+			turnId: targetTurnId,
+			duration,
 		} as any);
 	}
 
@@ -619,6 +656,8 @@ export class AhpConnection {
 			sub.close();
 		}
 		this.activeSubscriptions.clear();
+		this.activeTurnIds.clear();
+		this.activeTurnStartTimes.clear();
 
 		if (this.transport) {
 			try {
