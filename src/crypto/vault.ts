@@ -65,7 +65,7 @@ class CryptoVault {
 	}
 
 	private getOrCreateSalt(): Uint8Array {
-		const stored = localStorage.getItem("ahp_ui_salt");
+		const stored = typeof localStorage !== "undefined" ? localStorage.getItem("ahp_ui_salt") : null;
 		if (stored) {
 			const bin = atob(stored);
 			const arr = new Uint8Array(bin.length);
@@ -75,7 +75,9 @@ class CryptoVault {
 		const newSalt = crypto.getRandomValues(new Uint8Array(16));
 		let bin = "";
 		for (let i = 0; i < newSalt.length; i++) bin += String.fromCharCode(newSalt[i]);
-		localStorage.setItem("ahp_ui_salt", btoa(bin));
+		if (typeof localStorage !== "undefined") {
+			localStorage.setItem("ahp_ui_salt", btoa(bin));
+		}
 		return newSalt;
 	}
 

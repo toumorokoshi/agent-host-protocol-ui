@@ -354,6 +354,20 @@ export const App: React.FC = () => {
 			setCurrentHost(host);
 			await vault.init(mode, passphrase);
 
+			if (typeof localStorage !== "undefined") {
+				if (mode === "passphrase" && passphrase) {
+					const encrypted = await vault.encrypt(host);
+					if (encrypted) {
+						localStorage.setItem("ahp_encrypted_vault", encrypted);
+						localStorage.setItem("ahp_vault_mode", "passphrase");
+					}
+				} else {
+					// Memory-only or Ephemeral mode: clear any persistent vault ciphertext
+					localStorage.removeItem("ahp_encrypted_vault");
+					localStorage.removeItem("ahp_vault_mode");
+				}
+			}
+
 			// Automatically transition to Live Mode!
 			setIsMockMode(false);
 			// Clear out fake demo sessions immediately!

@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import type { StoragePrivacyMode } from "../crypto/vault.ts";
+import { type StoragePrivacyMode, vault } from "../crypto/vault.ts";
 import type { HostConfig } from "../types.ts";
 
 interface PasswordCredentialData {
@@ -34,6 +34,10 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 	const [showPassword, setShowPassword] = useState(false);
 	const [mode, setMode] = useState<StoragePrivacyMode>("ephemeral");
 	const [passphrase, setPassphrase] = useState("");
+	const [hasEncryptedVault, setHasEncryptedVault] = useState(false);
+	const [unlockPassphrase, setUnlockPassphrase] = useState("");
+	const [unlockStatus, setUnlockStatus] = useState<"idle" | "success" | "error">("idle");
+	const [unlockErrorMessage, setUnlockErrorMessage] = useState("");
 
 	// Proactively check browser password manager (Credential Management API) if fields are empty
 	useEffect(() => {
@@ -41,6 +45,13 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 		setName(currentHost.name);
 		setUrl(currentHost.url);
 		setToken(currentHost.token || "");
+
+		if (typeof localStorage !== "undefined" && localStorage.getItem("ahp_encrypted_vault")) {
+			setHasEncryptedVault(true);
+			setMode("passphrase");
+		} else {
+			setHasEncryptedVault(false);
+		}
 
 		if (
 			typeof window !== "undefined" &&
@@ -63,6 +74,36 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 				.catch(() => {});
 		}
 	}, [isOpen, currentHost]);
+
+	const handleUnlockVault = async () => {
+		if (!unlockPassphrase.trim()) return;
+		try {
+			await vault.init("passphrase", unlockPassphrase.trim());
+			const encrypted = typeof localStorage !== "undefined" ? localStorage.getItem("ahp_encrypted_vault") : null;
+			if (!encrypted) {
+				setUnlockStatus("error");
+				setUnlockErrorMessage("No encrypted data found in local storage.");
+				return;
+			}
+			const restored = await vault.decrypt<HostConfig>(encrypted);
+			if (restored?.url) {
+				setUrl(restored.url);
+				setToken(restored.token || "");
+				if (restored.name) setName(restored.name);
+				setMode("passphrase");
+				setPassphrase(unlockPassphrase.trim());
+				setUnlockStatus("success");
+				setUnlockErrorMessage("");
+			} else {
+				setUnlockStatus("error");
+				setUnlockErrorMessage("Incorrect passphrase or corrupt vault data.");
+			}
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "Invalid passphrase";
+			setUnlockStatus("error");
+			setUnlockErrorMessage(`Failed to decrypt vault: ${msg}`);
+		}
+	};
 
 	const currentHostname = typeof window !== "undefined" ? window.location.hostname : "";
 	const isNonLocalOrigin =
@@ -150,6 +191,65 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 
 				<form onSubmit={handleSubmit} method="post" autoComplete="on">
 					<div className="modal-body">
+						{hasEncryptedVault && (
+							<div
+								style={{
+									padding: "12px",
+									backgroundColor: "var(--bg-canvas)",
+									border: "1px solid var(--border-default)",
+									borderRadius: "var(--radius-md)",
+									marginBottom: "16px",
+								}}
+							>
+								<div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+									<span style={{ fontSize: "14px" }}>🔐</span>
+									<span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text-primary)" }}>
+										Encrypted Vault Detected
+									</span>
+								</div>
+								<p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "0 0 8px 0" }}>
+									Enter your master passphrase to unlock and restore previously saved host credentials.
+								</p>
+								<div style={{ display: "flex", gap: "6px" }}>
+									<input
+										type="password"
+										className="form-input"
+										style={{ flex: 1 }}
+										placeholder="Enter master passphrase"
+										value={unlockPassphrase}
+										onChange={(e) => {
+											setUnlockPassphrase(e.target.value);
+											if (unlockStatus !== "idle") setUnlockStatus("idle");
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.preventDefault();
+												handleUnlockVault();
+											}
+										}}
+									/>
+									<button
+										type="button"
+										className="btn btn-secondary"
+										onClick={handleUnlockVault}
+										disabled={!unlockPassphrase.trim()}
+									>
+										Unlock & Restore
+									</button>
+								</div>
+								{unlockStatus === "error" && (
+									<span style={{ fontSize: "11px", color: "var(--status-error)", marginTop: "6px", display: "block" }}>
+										✕ {unlockErrorMessage}
+									</span>
+								)}
+								{unlockStatus === "success" && (
+									<span style={{ fontSize: "11px", color: "var(--status-live)", marginTop: "6px", display: "block" }}>
+										✓ Vault unlocked! Host credentials restored.
+									</span>
+								)}
+							</div>
+						)}
+
 						<div className="form-group">
 							<label className="form-label" htmlFor="ahp-host-name">
 								Host Name
