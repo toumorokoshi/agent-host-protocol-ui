@@ -110,6 +110,41 @@ npx @toumorokoshi/agent-host-protocol-ui --bind 0.0.0.0 --port 8080 --no-open
 
 ---
 
+### Install from Source
+
+You can build and install the standalone CLI globally from source:
+
+#### Option A: From a cloned local repository
+
+```sh
+git clone https://github.com/toumorokoshi/agent-host-protocol-ui.git
+cd agent-host-protocol-ui
+npm install
+npm run build
+npm link
+# or install globally:
+npm install -g .
+```
+
+Now you can invoke the CLI from any directory:
+```sh
+agent-host-protocol-ui
+# or with flags:
+agent-host-protocol-ui --host 0.0.0.0
+```
+
+#### Option B: Directly from GitHub via npm / npx
+
+```sh
+# Run on-demand without manual cloning:
+npx github:toumorokoshi/agent-host-protocol-ui
+
+# Or install globally directly from GitHub:
+npm install -g github:toumorokoshi/agent-host-protocol-ui
+```
+
+---
+
 ### Local Development
 
 #### Prerequisites
