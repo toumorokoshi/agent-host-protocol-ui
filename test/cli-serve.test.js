@@ -178,4 +178,26 @@ describe("CLI External Serving & Hostname Binding", () => {
 			proc.kill("SIGTERM");
 		}
 	});
+
+	it("prints package version with --version and -v flags", async () => {
+		const execCli = (flag) =>
+			new Promise((resolve, reject) => {
+				const proc = spawn(process.execPath, [cliPath, flag]);
+				let out = "";
+				proc.stdout.on("data", (c) => {
+					out += c.toString();
+				});
+				proc.on("exit", (code) => resolve({ code, out: out.trim() }));
+				proc.on("error", reject);
+			});
+
+		const resLong = await execCli("--version");
+		assert.equal(resLong.code, 0);
+		assert.equal(resLong.out, "0.2.0");
+
+		const resShort = await execCli("-v");
+		assert.equal(resShort.code, 0);
+		assert.equal(resShort.out, "0.2.0");
+	});
 });
+

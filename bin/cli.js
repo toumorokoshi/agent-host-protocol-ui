@@ -89,6 +89,14 @@ for (let i = 0; i < args.length; i++) {
 		}
 	} else if (arg === "--agent-host" || arg === "--ws" || arg === "-a") {
 		agentHostParam = value ?? args[++i] ?? "";
+	} else if (arg === "--version" || arg === "-v") {
+		try {
+			const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+			console.log(pkg.version);
+		} catch {
+			console.log("0.2.0");
+		}
+		process.exit(0);
 	} else if (arg === "--help") {
 		console.log(`
 agent-host-protocol-ui - Client-side UI for Agent Host Protocol
@@ -102,6 +110,7 @@ Options:
   -p, --port <number>        Port to listen on (default: 5173 or process.env.PORT)
   -a, --agent-host <ws-url>  Pre-configure agent host WebSocket URL
   --no-open                  Do not automatically open the browser
+  -v, --version              Show version number
   --help                     Show help
 
 Environment variables:
