@@ -7,5 +7,9 @@ lint:
     npx @biomejs/biome check .
     npm run typecheck
 
+# Run unit tests.
+test:
+    node --test
+
 # Everything CI runs.
-ci: lint
+ci: lint test

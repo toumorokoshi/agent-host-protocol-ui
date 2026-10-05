@@ -10,6 +10,7 @@ import { Inspector } from "./components/Inspector.tsx";
 import { NewSessionModal } from "./components/NewSessionModal.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { type StoragePrivacyMode, vault } from "./crypto/vault.ts";
+import { useTheme } from "./hooks/useTheme.ts";
 import type { ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
 
 const DEFAULT_HOST: HostConfig = {
@@ -20,6 +21,7 @@ const DEFAULT_HOST: HostConfig = {
 };
 
 export const App: React.FC = () => {
+	const { themePreference, resolvedTheme, setTheme } = useTheme();
 	const [currentHost, setCurrentHost] = useState<HostConfig>(DEFAULT_HOST);
 	const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
 	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
@@ -421,6 +423,9 @@ export const App: React.FC = () => {
 				currentHost={currentHost}
 				status={connectionStatus}
 				isMockMode={isMockMode}
+				themePreference={themePreference}
+				resolvedTheme={resolvedTheme}
+				onSetTheme={setTheme}
 				onOpenHostModal={() => setIsHostModalOpen(true)}
 				onNewSession={() => setIsNewSessionModalOpen(true)}
 				onToggleMockMode={handleToggleMockMode}

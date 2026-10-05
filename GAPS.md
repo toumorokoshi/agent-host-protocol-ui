@@ -49,3 +49,9 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Skills & Customizations Inspector:** Sidebar tab inspecting session customizations, MCP server configs, and loaded skills.
 - [ ] **Embedded Terminal Emulator:** Integrate `xterm.js` connecting to `ahp-terminal:` channels via `createTerminal` / `disposeTerminal`.
 - [ ] **Changeset & Diff Viewer:** Visual review of modified files and unified diffs generated during turns.
+
+## 7. Visual Aesthetics & Theme System
+- [x] **Dark Mode by Default with System Color Scheme Detection:** Defaults to dark mode while automatically adapting to the user's OS light/dark scheme when available via `prefers-color-scheme`.
+- [x] **Dynamic Theme Switching:** Live media query listener updating dynamically on OS appearance changes, along with manual overrides (Auto / Light / Dark) in the Header.
+- [ ] **Custom Theme Accents:** User-customizable accent colors and IDE syntax highlighting themes.
+

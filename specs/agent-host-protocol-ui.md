@@ -185,7 +185,7 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 - **Global Actions:**
   - "New Session" button.
   - Connection retry button when disconnected.
-  - Theme toggle (Dark / Light, defaulting to Dark).
+  - Theme toggle (Auto / Light / Dark, using dark mode by default, but automatically honoring the system provided color scheme when available).
 
 ### 4.2 Sidebar: Sessions Explorer
 - **Search & Filter:** Instant text filtering over titles, session IDs, and working directory paths.

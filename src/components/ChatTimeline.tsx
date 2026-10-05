@@ -58,7 +58,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, o
 								<div className="thinking-accordion">
 									<div className="thinking-summary" onClick={() => toggleThinking(turn.id)}>
 										<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-											<span className="status-dot" style={{ backgroundColor: "#a855f7" }} />
+											<span className="status-dot" style={{ backgroundColor: "var(--color-purple)" }} />
 											<span>
 												Thinking Process{" "}
 												{turn.thinkingDurationMs ? `(${Math.round(turn.thinkingDurationMs / 100) / 10}s)` : ""}
@@ -97,7 +97,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, o
 
 									{tool.status === "pending-confirmation" && onConfirmToolCall && (
 										<div className="tool-confirm-bar">
-											<span style={{ fontSize: "12px", color: "#fca5a5" }}>
+											<span style={{ fontSize: "12px", color: "var(--color-danger)" }}>
 												This tool requires explicit approval to execute.
 											</span>
 											<div style={{ display: "flex", gap: "8px" }}>
