@@ -46,34 +46,49 @@ function getNetworkIps() {
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-let port = 5173;
-let listenHost = "localhost";
+let port = Number.parseInt(process.env.PORT || "", 10) || 5173;
+let listenHost = process.env.HOST || "localhost";
 let autoOpen = true;
-let agentHostParam = "";
+let agentHostParam = process.env.AGENT_HOST || "";
 
 for (let i = 0; i < args.length; i++) {
-	const arg = args[i];
+	let arg = args[i];
+	let value;
+	if (arg.includes("=")) {
+		const eqIdx = arg.indexOf("=");
+		value = arg.slice(eqIdx + 1);
+		arg = arg.slice(0, eqIdx);
+	}
+
 	if (arg === "--port" || arg === "-p") {
-		port = Number.parseInt(args[++i], 10) || 5173;
+		port = Number.parseInt(value ?? args[++i], 10) || 5173;
 	} else if (arg === "--no-open") {
 		autoOpen = false;
 	} else if (arg === "--bind" || arg === "-b" || arg === "--hostname" || arg === "--listen") {
-		listenHost = args[++i] || "0.0.0.0";
+		listenHost = value ?? args[++i] ?? "0.0.0.0";
 	} else if (arg === "--host" || arg === "-h") {
-		const next = args[i + 1];
-		if (!next || next.startsWith("-")) {
-			// Flag present without value: bind to 0.0.0.0 (like Vite --host)
-			listenHost = "0.0.0.0";
-		} else {
-			i++;
-			if (next.startsWith("ws://") || next.startsWith("wss://")) {
-				agentHostParam = next;
+		if (value !== undefined) {
+			if (value.startsWith("ws://") || value.startsWith("wss://")) {
+				agentHostParam = value;
 			} else {
-				listenHost = next;
+				listenHost = value;
+			}
+		} else {
+			const next = args[i + 1];
+			if (!next || next.startsWith("-")) {
+				// Flag present without value: bind to 0.0.0.0 (like Vite --host)
+				listenHost = "0.0.0.0";
+			} else {
+				i++;
+				if (next.startsWith("ws://") || next.startsWith("wss://")) {
+					agentHostParam = next;
+				} else {
+					listenHost = next;
+				}
 			}
 		}
 	} else if (arg === "--agent-host" || arg === "--ws" || arg === "-a") {
-		agentHostParam = args[++i] || "";
+		agentHostParam = value ?? args[++i] ?? "";
 	} else if (arg === "--help") {
 		console.log(`
 agent-host-protocol-ui - Client-side UI for Agent Host Protocol
@@ -84,10 +99,15 @@ Usage:
 Options:
   -b, --bind <address>       Hostname/IP to listen on (e.g. 0.0.0.0 or localhost, default: localhost)
   --host [address]           Bind to address (default: 0.0.0.0 if flag present without value)
-  -p, --port <number>        Port to listen on (default: 5173)
+  -p, --port <number>        Port to listen on (default: 5173 or process.env.PORT)
   -a, --agent-host <ws-url>  Pre-configure agent host WebSocket URL
   --no-open                  Do not automatically open the browser
   --help                     Show help
+
+Environment variables:
+  HOST=<address>             Default hostname/IP to listen on (e.g. 0.0.0.0)
+  PORT=<number>              Default port to listen on
+  AGENT_HOST=<ws-url>        Default agent host WebSocket URL
 `);
 		process.exit(0);
 	}
@@ -154,20 +174,30 @@ server.on("error", (err) => {
 
 server.listen(port, listenHost, () => {
 	const isWildcard = listenHost === "0.0.0.0" || listenHost === "::";
+	const isLocal = listenHost === "localhost" || listenHost === "127.0.0.1" || listenHost === "::1";
 	const querySuffix = agentHostParam ? `?host=${encodeURIComponent(agentHostParam)}` : "";
-	const localUrl = `http://localhost:${port}${querySuffix}`;
+
+	const displayLocalUrl = `http://localhost:${port}${querySuffix}`;
+	const openUrl = isLocal || isWildcard ? displayLocalUrl : `http://${listenHost}:${port}${querySuffix}`;
 	const networkIps = isWildcard ? getNetworkIps() : [];
 
 	console.log(`
 ┌────────────────────────────────────────────────────────┐
 │                                                        │
 │   Agent Host Protocol UI                               │
-│                                                        │
-│   > Local:   ${localUrl.padEnd(42)}│`);
+│                                                        │`);
 
-	for (const ip of networkIps) {
-		const netUrl = `http://${ip}:${port}${querySuffix}`;
-		console.log(`│   > Network: ${netUrl.padEnd(42)}│`);
+	if (isWildcard) {
+		console.log(`│   > Local:   ${displayLocalUrl.padEnd(42)}│`);
+		for (const ip of networkIps) {
+			const netUrl = `http://${ip}:${port}${querySuffix}`;
+			console.log(`│   > Network: ${netUrl.padEnd(42)}│`);
+		}
+	} else if (isLocal) {
+		console.log(`│   > Local:   ${displayLocalUrl.padEnd(42)}│`);
+	} else {
+		const customUrl = `http://${listenHost}:${port}${querySuffix}`;
+		console.log(`│   > Host:    ${customUrl.padEnd(42)}│`);
 	}
 
 	console.log(`│                                                        │
@@ -175,7 +205,7 @@ server.listen(port, listenHost, () => {
 └────────────────────────────────────────────────────────┘
 `);
 	if (autoOpen) {
-		openBrowser(localUrl);
+		openBrowser(openUrl);
 	}
 });
 
