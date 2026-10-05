@@ -21,6 +21,18 @@ export function fileUriFromPath(path: string): string {
 	return `file://${encodeURI(normalized)}`;
 }
 
+/**
+ * Strips provider prefixes and schemes from session resources or identifiers.
+ * e.g., "pi:/01a10912-fbd3-7307-9258-4148e09944ea" -> "01a10912-fbd3-7307-9258-4148e09944ea"
+ * e.g., "ahp-session:/01a10912-fbd3-7307-9258-4148e09944ea" -> "01a10912-fbd3-7307-9258-4148e09944ea"
+ * e.g., "ahp-session://default/01a10912-fbd3-7307-9258-4148e09944ea" -> "01a10912-fbd3-7307-9258-4148e09944ea"
+ */
+export function extractSessionId(resource: string): string {
+	if (!resource) return "";
+	const cleaned = resource.replace(/^(?:ahp-session|pi|[a-z0-9_-]+):(?:\/{1,2}[^/]+\/|\/{1,2})?/i, "");
+	return cleaned || resource;
+}
+
 export class AhpConnection {
 	private client: AhpClient | null = null;
 	private transport: WebSocketTransport | null = null;
@@ -33,6 +45,7 @@ export class AhpConnection {
 	private remoteAgents: AgentInfo[] = [];
 	private remoteModels: ModelInfo[] = [];
 	private activeSubscriptions = new Map<string, Subscription>();
+	private sessionChatUris = new Map<string, string>();
 
 	getStatus(): ConnectionStatus {
 		return this.status;
@@ -167,7 +180,7 @@ export class AhpConnection {
 			return (res.items || []).map((summary) => {
 				const cwdUri = summary.workingDirectories?.[0] || "";
 				const cwd = cwdUri ? pathFromFileUri(cwdUri) : this.defaultDirectory;
-				const id = (summary as any).id || summary.resource.replace(/^ahp-session:\/?/, "");
+				const id = (summary as any).id || extractSessionId(summary.resource);
 
 				return {
 					id,
@@ -250,19 +263,30 @@ export class AhpConnection {
 			return () => {};
 		}
 
-		const sessionUri = `ahp-session:/${sessionId}`;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const sessionUri = `ahp-session:/${cleanId}`;
+		const canonicalChatUri = `ahp-chat:/${cleanId}`;
 
 		try {
 			// Subscribe to session
 			const { result: sessionRes, subscription: sessionSub } = await this.client.subscribe(sessionUri);
-			this.mirror.applySnapshot(sessionRes as any);
+			const sessionSnapshot = (sessionRes as any)?.snapshot || sessionRes;
+			if (sessionSnapshot?.resource) {
+				this.mirror.applySnapshot(sessionSnapshot);
+			}
+
+			// Determine target chat URI (server might advertise defaultChat or canonical)
+			const chatUri = (sessionSnapshot?.state as any)?.defaultChat || canonicalChatUri;
+			this.sessionChatUris.set(cleanId, chatUri);
 
 			// Subscribe to chat
 			const { result: chatRes, subscription: chatSub } = await this.client.subscribe(chatUri);
-			this.mirror.applySnapshot(chatRes as any);
+			const chatSnapshot = (chatRes as any)?.snapshot || chatRes;
+			if (chatSnapshot?.resource) {
+				this.mirror.applySnapshot(chatSnapshot);
+			}
 
-			const initialChatState = chatRes as unknown as ChatState;
+			const initialChatState = (chatSnapshot?.state || chatSnapshot || {}) as ChatState;
 
 			// Map initial turns and activeTurn
 			const initialTurns = (initialChatState.turns || []).map(mapChatTurnToUiTurn);
@@ -271,13 +295,31 @@ export class AhpConnection {
 				: undefined;
 
 			onUpdate({
-				turns: initialTurns,
+				turns: [...initialTurns],
 				activeTurn: currentActiveTurn,
-				queuedMessages: (initialChatState.queuedMessages || []).map((m) => m.message.text),
+				queuedMessages: (initialChatState.queuedMessages || []).map((m: any) => m.message?.text || m.text || ""),
 			});
 
-			// Stream listener
 			let active = true;
+
+			// Listen to session metadata changes (e.g. title)
+			(async () => {
+				try {
+					for await (const event of sessionSub) {
+						if (!active) break;
+						if (event.type === "action") {
+							const action = (event.params as any)?.action;
+							if (action?.type === "session/titleChanged" && action.title) {
+								onUpdate({ title: action.title });
+							}
+						}
+					}
+				} catch {
+					// stream closed
+				}
+			})();
+
+			// Listen to chat stream actions
 			(async () => {
 				try {
 					for await (const event of chatSub) {
@@ -292,63 +334,155 @@ export class AhpConnection {
 								currentActiveTurn = {
 									id: action.turnId || `turn-${Date.now()}`,
 									userPrompt: action.message?.text || "",
-									startedAt: new Date().toISOString(),
+									startedAt: action.startedAt || new Date().toISOString(),
+									model: action.message?.model?.id,
 									assistantText: "",
 									toolCalls: [],
 									state: "streaming",
 								};
 								onUpdate({ activeTurn: currentActiveTurn });
-							} else if (actionType === "chat/textDelta") {
+							} else if (actionType === "chat/responsePart") {
+								if (currentActiveTurn && action.part) {
+									if (action.part.kind === "markdown") {
+										currentActiveTurn = {
+											...currentActiveTurn,
+											assistantText: currentActiveTurn.assistantText + (action.part.content || ""),
+										};
+									} else if (action.part.kind === "reasoning") {
+										currentActiveTurn = {
+											...currentActiveTurn,
+											thinkingContent: (currentActiveTurn.thinkingContent || "") + (action.part.content || ""),
+										};
+									}
+									onUpdate({ activeTurn: currentActiveTurn });
+								}
+							} else if (actionType === "chat/delta" || actionType === "chat/textDelta") {
 								if (currentActiveTurn) {
+									const delta = action.content || action.delta || "";
 									currentActiveTurn = {
 										...currentActiveTurn,
-										assistantText: currentActiveTurn.assistantText + (action.delta || ""),
+										assistantText: currentActiveTurn.assistantText + delta,
 									};
 									onUpdate({ activeTurn: currentActiveTurn });
 								}
 							} else if (actionType === "chat/reasoning") {
 								if (currentActiveTurn) {
+									const delta = action.content || action.delta || "";
 									currentActiveTurn = {
 										...currentActiveTurn,
-										thinkingContent: (currentActiveTurn.thinkingContent || "") + (action.delta || ""),
+										thinkingContent: (currentActiveTurn.thinkingContent || "") + delta,
 									};
 									onUpdate({ activeTurn: currentActiveTurn });
 								}
-							} else if (actionType === "chat/toolCallStart") {
+							} else if (actionType === "chat/toolCallStart" || actionType === "chat/toolCallReady") {
 								if (currentActiveTurn) {
+									const existingIdx = currentActiveTurn.toolCalls.findIndex((tc) => tc.id === action.toolCallId);
 									const tool: UiToolCall = {
 										id: action.toolCallId || `tc-${Date.now()}`,
 										name: action.toolName || "tool",
-										arguments: action.input || {},
+										arguments: action.input || action.arguments || action.args || {},
 										status: "running",
 									};
-									currentActiveTurn = {
-										...currentActiveTurn,
-										toolCalls: [...currentActiveTurn.toolCalls, tool],
-									};
-									onUpdate({ activeTurn: currentActiveTurn });
+									if (existingIdx >= 0) {
+										currentActiveTurn.toolCalls[existingIdx] = {
+											...currentActiveTurn.toolCalls[existingIdx],
+											...tool,
+										};
+									} else {
+										currentActiveTurn.toolCalls.push(tool);
+									}
+									onUpdate({ activeTurn: { ...currentActiveTurn, toolCalls: [...currentActiveTurn.toolCalls] } });
 								}
-							} else if (actionType === "chat/toolCallDelta") {
+							} else if (actionType === "chat/toolCallContentChanged" || actionType === "chat/toolCallDelta") {
 								if (currentActiveTurn) {
+									const chunk =
+										typeof action.content === "string"
+											? action.content
+											: typeof action.result === "string"
+												? action.result
+												: "";
 									currentActiveTurn = {
 										...currentActiveTurn,
 										toolCalls: currentActiveTurn.toolCalls.map((tc) =>
 											tc.id === action.toolCallId
 												? {
 														...tc,
-														status: "completed",
-														result: typeof action.result === "string" ? action.result : JSON.stringify(action.result),
+														result: (tc.result || "") + chunk,
 													}
 												: tc,
 										),
 									};
 									onUpdate({ activeTurn: currentActiveTurn });
 								}
+							} else if (actionType === "chat/toolCallComplete") {
+								if (currentActiveTurn) {
+									const res = action.result;
+									currentActiveTurn = {
+										...currentActiveTurn,
+										toolCalls: currentActiveTurn.toolCalls.map((tc) =>
+											tc.id === action.toolCallId
+												? {
+														...tc,
+														status: res?.success === false ? "cancelled" : "completed",
+														result:
+															typeof res?.content === "string"
+																? res.content
+																: typeof res === "string"
+																	? res
+																	: JSON.stringify(res?.content || res || ""),
+														error: res?.error?.message,
+													}
+												: tc,
+										),
+									};
+									onUpdate({ activeTurn: currentActiveTurn });
+								}
+							} else if (actionType === "chat/usage") {
+								if (currentActiveTurn && action.usage) {
+									currentActiveTurn = {
+										...currentActiveTurn,
+										tokens: {
+											prompt: action.usage.inputTokens ?? action.usage.promptTokens ?? 0,
+											completion: action.usage.outputTokens ?? action.usage.completionTokens ?? 0,
+										},
+									};
+									onUpdate({ activeTurn: currentActiveTurn });
+								}
 							} else if (actionType === "chat/turnComplete") {
-								currentActiveTurn = undefined;
-								onUpdate({ activeTurn: undefined });
-								// Re-fetch turns to ensure state accuracy
-								this.client?.request("fetchTurns" as any, { channel: chatUri }).catch(() => {});
+								if (currentActiveTurn) {
+									const completedTurn: UiTurn = {
+										...currentActiveTurn,
+										state: "complete",
+										durationMs: action.duration,
+									};
+									initialTurns.push(completedTurn);
+									currentActiveTurn = undefined;
+									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								}
+							} else if (actionType === "chat/error") {
+								if (currentActiveTurn) {
+									const errTurn: UiTurn = {
+										...currentActiveTurn,
+										state: "error",
+										resumableError:
+											action.part?.error?.message || action.error?.message || "An error occurred during turn",
+										durationMs: action.duration,
+									};
+									initialTurns.push(errTurn);
+									currentActiveTurn = undefined;
+									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								}
+							} else if (actionType === "chat/turnCancelled") {
+								if (currentActiveTurn) {
+									const cancelledTurn: UiTurn = {
+										...currentActiveTurn,
+										state: "cancelled",
+										durationMs: action.duration,
+									};
+									initialTurns.push(cancelledTurn);
+									currentActiveTurn = undefined;
+									onUpdate({ turns: [...initialTurns], activeTurn: undefined });
+								}
 							}
 						}
 					}
@@ -373,11 +507,14 @@ export class AhpConnection {
 	 */
 	async sendMessage(sessionId: string, text: string, model: string): Promise<void> {
 		if (!this.client) return;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 
+		const turnId = crypto.randomUUID();
 		this.client.dispatch(chatUri, {
 			type: "chat/turnStarted",
-			turnId: `turn-${Date.now()}`,
+			turnId,
+			startedAt: new Date().toISOString(),
 			message: {
 				text,
 				origin: { kind: "user" },
@@ -389,11 +526,13 @@ export class AhpConnection {
 	/**
 	 * Cancel an in-flight turn.
 	 */
-	async cancelTurn(sessionId: string): Promise<void> {
+	async cancelTurn(sessionId: string, turnId?: string): Promise<void> {
 		if (!this.client) return;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 		this.client.dispatch(chatUri, {
 			type: "chat/turnCancelled",
+			turnId,
 		} as any);
 	}
 
@@ -402,7 +541,8 @@ export class AhpConnection {
 	 */
 	async steerTurn(sessionId: string, text: string): Promise<void> {
 		if (!this.client) return;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 		this.client.dispatch(chatUri, {
 			type: "chat/pendingMessageSet",
 			kind: "steering",
@@ -415,7 +555,8 @@ export class AhpConnection {
 	 */
 	async queueMessage(sessionId: string, text: string): Promise<void> {
 		if (!this.client) return;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 		this.client.dispatch(chatUri, {
 			type: "chat/pendingMessageSet",
 			kind: "queued",
@@ -428,7 +569,8 @@ export class AhpConnection {
 	 */
 	async confirmToolCall(sessionId: string, toolCallId: string, approved: boolean): Promise<void> {
 		if (!this.client) return;
-		const chatUri = `ahp-chat:/${sessionId}`;
+		const cleanId = extractSessionId(sessionId);
+		const chatUri = this.sessionChatUris.get(cleanId) || `ahp-chat:/${cleanId}`;
 		this.client.dispatch(chatUri, {
 			type: "chat/toolCallConfirmed",
 			toolCallId,
@@ -441,8 +583,9 @@ export class AhpConnection {
 	 */
 	async disposeSession(sessionId: string): Promise<void> {
 		if (!this.client) return;
+		const cleanId = extractSessionId(sessionId);
 		await this.client.request("disposeSession" as any, {
-			channel: `ahp-session:/${sessionId}`,
+			channel: `ahp-session:/${cleanId}`,
 		});
 	}
 

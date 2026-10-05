@@ -189,12 +189,25 @@ export const App: React.FC = () => {
 		if (!isMockMode && connectionStatus === "connected") {
 			if (activeTurn && !isSteering) {
 				await ahpConnection.queueMessage(activeSession.id, text);
+				setSessions((prev) =>
+					prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
+				);
 				return;
 			}
 			if (isSteering && activeTurn) {
 				await ahpConnection.steerTurn(activeSession.id, text);
 				return;
 			}
+			// Optimistically set activeTurn so the prompt immediately renders in the timeline
+			setActiveTurn({
+				id: `turn-${Date.now()}`,
+				userPrompt: text,
+				startedAt: new Date().toISOString(),
+				model: activeSession.model,
+				assistantText: "",
+				toolCalls: [],
+				state: "streaming",
+			});
 			await ahpConnection.sendMessage(activeSession.id, text, activeSession.model);
 			return;
 		}
@@ -277,7 +290,7 @@ export const App: React.FC = () => {
 
 	const handleCancelTurn = async () => {
 		if (!isMockMode && connectionStatus === "connected" && activeSession) {
-			await ahpConnection.cancelTurn(activeSession.id);
+			await ahpConnection.cancelTurn(activeSession.id, activeTurn?.id);
 			return;
 		}
 
