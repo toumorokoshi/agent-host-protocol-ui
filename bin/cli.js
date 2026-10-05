@@ -3,6 +3,7 @@
 import { exec } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,11 +25,31 @@ const MIME_TYPES = {
 	".woff2": "font/woff2",
 };
 
+function getNetworkIps() {
+	const ips = [];
+	try {
+		const interfaces = os.networkInterfaces();
+		for (const name of Object.keys(interfaces)) {
+			const netInterface = interfaces[name];
+			if (!netInterface) continue;
+			for (const iface of netInterface) {
+				if (iface.family === "IPv4" && !iface.internal) {
+					ips.push(iface.address);
+				}
+			}
+		}
+	} catch {
+		// ignore network interface errors
+	}
+	return ips;
+}
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 let port = 5173;
+let listenHost = "localhost";
 let autoOpen = true;
-let hostParam = "";
+let agentHostParam = "";
 
 for (let i = 0; i < args.length; i++) {
 	const arg = args[i];
@@ -36,8 +57,23 @@ for (let i = 0; i < args.length; i++) {
 		port = Number.parseInt(args[++i], 10) || 5173;
 	} else if (arg === "--no-open") {
 		autoOpen = false;
+	} else if (arg === "--bind" || arg === "-b" || arg === "--hostname" || arg === "--listen") {
+		listenHost = args[++i] || "0.0.0.0";
 	} else if (arg === "--host" || arg === "-h") {
-		hostParam = args[++i] || "";
+		const next = args[i + 1];
+		if (!next || next.startsWith("-")) {
+			// Flag present without value: bind to 0.0.0.0 (like Vite --host)
+			listenHost = "0.0.0.0";
+		} else {
+			i++;
+			if (next.startsWith("ws://") || next.startsWith("wss://")) {
+				agentHostParam = next;
+			} else {
+				listenHost = next;
+			}
+		}
+	} else if (arg === "--agent-host" || arg === "--ws" || arg === "-a") {
+		agentHostParam = args[++i] || "";
 	} else if (arg === "--help") {
 		console.log(`
 agent-host-protocol-ui - Client-side UI for Agent Host Protocol
@@ -46,10 +82,12 @@ Usage:
   npx agent-host-protocol-ui [options]
 
 Options:
-  -p, --port <number>     Port to listen on (default: 5173)
-  -h, --host <ws-url>     Pre-configure host WebSocket URL
-  --no-open               Do not automatically open the browser
-  --help                  Show help
+  -b, --bind <address>       Hostname/IP to listen on (e.g. 0.0.0.0 or localhost, default: localhost)
+  --host [address]           Bind to address (default: 0.0.0.0 if flag present without value)
+  -p, --port <number>        Port to listen on (default: 5173)
+  -a, --agent-host <ws-url>  Pre-configure agent host WebSocket URL
+  --no-open                  Do not automatically open the browser
+  --help                     Show help
 `);
 		process.exit(0);
 	}
@@ -107,29 +145,37 @@ server.on("error", (err) => {
 	if (err && typeof err === "object" && "code" in err && err.code === "EADDRINUSE") {
 		console.log(`Port ${port} in use, trying ${port + 1}...`);
 		port++;
-		server.listen(port);
+		server.listen(port, listenHost);
 	} else {
 		console.error("Server error:", err);
 		process.exit(1);
 	}
 });
 
-server.listen(port, () => {
-	let targetUrl = `http://localhost:${port}`;
-	if (hostParam) {
-		targetUrl += `?host=${encodeURIComponent(hostParam)}`;
-	}
+server.listen(port, listenHost, () => {
+	const isWildcard = listenHost === "0.0.0.0" || listenHost === "::";
+	const querySuffix = agentHostParam ? `?host=${encodeURIComponent(agentHostParam)}` : "";
+	const localUrl = `http://localhost:${port}${querySuffix}`;
+	const networkIps = isWildcard ? getNetworkIps() : [];
+
 	console.log(`
 ┌────────────────────────────────────────────────────────┐
 │                                                        │
 │   Agent Host Protocol UI                               │
-│   Running at: ${targetUrl.padEnd(41)}│
 │                                                        │
+│   > Local:   ${localUrl.padEnd(42)}│`);
+
+	for (const ip of networkIps) {
+		const netUrl = `http://${ip}:${port}${querySuffix}`;
+		console.log(`│   > Network: ${netUrl.padEnd(42)}│`);
+	}
+
+	console.log(`│                                                        │
 │   Press Ctrl+C to stop                                 │
 └────────────────────────────────────────────────────────┘
 `);
 	if (autoOpen) {
-		openBrowser(targetUrl);
+		openBrowser(localUrl);
 	}
 });
 

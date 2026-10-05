@@ -90,14 +90,22 @@ Launch the UI directly in your browser without cloning or installing:
 npx agent-host-protocol-ui
 ```
 
-You can optionally pre-configure the host URL and specify a port:
+#### CLI Options & External Network Access
 
 ```sh
-# Pre-configure your local or remote host connection
-npx agent-host-protocol-ui --host "ws://127.0.0.1:63877?tkn=your-token"
+# Serve on all network interfaces (0.0.0.0) so it is accessible externally
+npx agent-host-protocol-ui --host 0.0.0.0
+# or:
+npx agent-host-protocol-ui --bind 0.0.0.0
+
+# Pre-configure your local or remote agent host connection
+npx agent-host-protocol-ui --agent-host "ws://127.0.0.1:63877?tkn=your-token"
 
 # Specify a custom port
 npx agent-host-protocol-ui --port 3000
+
+# Run headless without opening local browser (e.g. in remote VM or container)
+npx agent-host-protocol-ui --bind 0.0.0.0 --port 8080 --no-open
 ```
 
 ---
