@@ -62,6 +62,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Slide-Over Navigation Drawer:** Off-canvas sessions sidebar drawer with backdrop blur, hamburger menu toggle, and auto-close on session selection.
 - [x] **Mobile Inspector Drawer:** Off-canvas slide-over drawer for skills, queue, and diagnostics on small viewports.
 - [x] **Touch-Friendly Controls:** Minimum 44px touch targets, mobile-optimized header buttons, and 16px font sizing preventing iOS Safari auto-zoom on input focus.
+- [x] **Mobile Host Configuration Access:** WebSocket host configuration moved behind a settings (cog) icon in the header action cluster with an overlaid connection status dot, replacing the inline host pill that was squeezed under the theme toggles on narrow viewports.
 - [ ] **Swipe Gesture Support:** Swipe from left screen edge to open sidebar drawer and swipe right to dismiss.
 
 

@@ -157,7 +157,7 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 
 ```
 +-----------------------------------------------------------------------------------------+
-| [Header] Logo | Host: [Local Host (ws://127.0.0.1:63877) v] [● Connected]  [+ New Session] |
+| [Header] Logo | [Theme Toggle] [Demo/Live] [⚙ Settings (● host status)]  [+ New Session] |
 +------------------+----------------------------------------------------+------------------+
 | SESSIONS         | CHAT: "Refactor database migrations"               | DETAILS / TOOLS  |
 | ---------------- | -------------------------------------------------- | ---------------- |
@@ -179,9 +179,10 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 
 ### 4.1 Header Bar
 - **Brand Title & Logo:** Agent Host Protocol UI (`AHP UI`).
-- **Host Switcher Dropdown:**
-  - Displays currently selected host with status dot (`green` = connected, `amber` = connecting/reconnecting, `red` = disconnected).
-  - Quick action: "Add Host..." modal (Name, URL with token parameter).
+- **Settings (Cog) Icon:**
+  - Opens the "Configure Agent Host" popup modal (Name, WebSocket URL with token parameter).
+  - Overlaid status dot indicates connection state (`green` = connected, `amber` = connecting/reconnecting, `red` = disconnected).
+  - Placed in the right-hand action cluster so the host configuration stays reachable on narrow mobile viewports (the previous inline host pill was squeezed underneath the theme toggles on mobile).
 - **Global Actions:**
   - "New Session" button.
   - Connection retry button when disconnected.

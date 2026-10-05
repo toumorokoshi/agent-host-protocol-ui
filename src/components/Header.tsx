@@ -1,9 +1,8 @@
 import type React from "react";
 import type { ResolvedTheme, ThemePreference } from "../hooks/useTheme.ts";
-import type { ConnectionStatus, HostConfig } from "../types.ts";
+import type { ConnectionStatus } from "../types.ts";
 
 interface HeaderProps {
-	currentHost: HostConfig;
 	status: ConnectionStatus;
 	isMockMode: boolean;
 	themePreference: ThemePreference;
@@ -16,7 +15,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-	currentHost,
 	status,
 	isMockMode,
 	themePreference,
@@ -55,14 +53,6 @@ export const Header: React.FC<HeaderProps> = ({
 					<span className="brand-text-full">Agent Host Protocol</span>
 					<span className="brand-text-short">AHP</span>
 				</div>
-
-				<button type="button" className="host-pill" onClick={onOpenHostModal} title="Configure Agent Host Connection">
-					<span className={`status-dot ${isMockMode ? "connected" : status}`} />
-					<span className="host-name-label">{isMockMode ? "Demo Host" : currentHost.name}</span>
-					<span className="host-url-label" style={{ color: "var(--text-muted)", fontSize: "11px" }}>
-						{isMockMode ? "In-Memory" : currentHost.url.replace(/\?tkn=.*$/, "")}
-					</span>
-				</button>
 
 				<div className="privacy-badge" title="Web Crypto AES-GCM-256 Client-Side Encryption Enabled">
 					<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -142,6 +132,29 @@ export const Header: React.FC<HeaderProps> = ({
 					</svg>
 					<span className="btn-text-full">New Session</span>
 					<span className="btn-text-short">New</span>
+				</button>
+
+				<button
+					type="button"
+					className="header-settings-btn"
+					onClick={onOpenHostModal}
+					title="Settings: Configure Agent Host Connection"
+					aria-label="Settings: configure agent host connection"
+				>
+					<svg
+						width="15"
+						height="15"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
+						<circle cx="12" cy="12" r="3" />
+						<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+					</svg>
+					<span className={`status-dot settings-status-dot ${isMockMode ? "connected" : status}`} />
 				</button>
 			</div>
 		</header>

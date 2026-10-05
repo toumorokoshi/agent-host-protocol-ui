@@ -91,7 +91,7 @@ AHP daemon connections often include token parameters, such as:
 ```
 ws://127.0.0.1:63877?tkn=abc123xyz
 ```
-The UI immediately isolates the `tkn` parameter into the encrypted credential vault and replaces the displayed URL in the header and address bar with a sanitized representation:
+The UI immediately isolates the `tkn` parameter into the encrypted credential vault. The header chrome never renders the raw connection string — only a connection status dot on the settings (cog) icon — so the token is never exposed in the UI. The full URL (with the token field masked by default) is visible only inside the host configuration modal:
 ```
 ws://127.0.0.1:63877 [Token Secured]
 ```

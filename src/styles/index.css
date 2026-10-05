@@ -327,24 +327,6 @@ body {
 	color: white;
 }
 
-.host-pill {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	background-color: var(--bg-surface);
-	border: 1px solid var(--border-default);
-	padding: 4px 12px;
-	border-radius: var(--radius-full);
-	font-size: 12px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-}
-
-.host-pill:hover {
-	background-color: var(--bg-surface-elevated);
-	border-color: var(--border-focused);
-}
-
 .status-dot {
 	width: 8px;
 	height: 8px;
@@ -414,6 +396,37 @@ body {
 	background-color: var(--color-primary-light);
 	color: var(--color-primary);
 	font-weight: 600;
+}
+
+.header-settings-btn {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	flex-shrink: 0;
+	border-radius: var(--radius-full);
+	background-color: var(--bg-surface);
+	border: 1px solid var(--border-default);
+	color: var(--text-secondary);
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.header-settings-btn:hover {
+	color: var(--text-primary);
+	background-color: var(--bg-surface-hover);
+	border-color: var(--border-focused);
+}
+
+.settings-status-dot {
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	width: 7px;
+	height: 7px;
+	border: 1.5px solid var(--bg-sidebar);
 }
 
 .btn {
@@ -1139,23 +1152,6 @@ body {
 		display: none;
 	}
 
-	.host-pill {
-		padding: 3px 8px;
-		max-width: 140px;
-		font-size: 11px;
-	}
-
-	.host-name-label {
-		max-width: 80px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.host-url-label {
-		display: none;
-	}
-
 	.header-left {
 		gap: 8px;
 		flex: 1;
@@ -1426,14 +1422,6 @@ body {
 @media (max-width: 480px) {
 	.header {
 		padding: 0 8px;
-	}
-
-	.host-pill {
-		max-width: 110px;
-	}
-
-	.host-name-label {
-		max-width: 65px;
 	}
 
 	.chat-title {

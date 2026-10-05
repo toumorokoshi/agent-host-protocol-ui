@@ -445,7 +445,6 @@ export const App: React.FC = () => {
 	return (
 		<>
 			<Header
-				currentHost={currentHost}
 				status={connectionStatus}
 				isMockMode={isMockMode}
 				themePreference={themePreference}
