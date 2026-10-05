@@ -82,11 +82,31 @@ The application is completely self-contained. It requires no backend server or N
 
 ## Quickstart
 
-### Prerequisites
+### Run via npx (Zero Setup)
+
+Launch the UI directly in your browser without cloning or installing:
+
+```sh
+npx agent-host-protocol-ui
+```
+
+You can optionally pre-configure the host URL and specify a port:
+
+```sh
+# Pre-configure your local or remote host connection
+npx agent-host-protocol-ui --host "ws://127.0.0.1:63877?tkn=your-token"
+
+# Specify a custom port
+npx agent-host-protocol-ui --port 3000
+```
+
+---
+
+### Local Development
+
+#### Prerequisites
 - Node.js 22 or later
 - npm or pnpm
-
-### Development
 
 ```sh
 # Install dependencies

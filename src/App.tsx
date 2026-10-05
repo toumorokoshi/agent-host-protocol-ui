@@ -345,24 +345,46 @@ export const App: React.FC = () => {
 	 * Automatically switches from demo mode to live mode when user enters host credentials.
 	 * Clears fake demo sessions so that only real live sessions appear!
 	 */
-	const handleSaveHost = async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => {
-		setCurrentHost(host);
-		await vault.init(mode, passphrase);
+	const handleSaveHost = useCallback(
+		async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => {
+			setCurrentHost(host);
+			await vault.init(mode, passphrase);
 
-		// Automatically transition to Live Mode!
-		setIsMockMode(false);
-		// Clear out fake demo sessions immediately!
-		setSessions([]);
-		setActiveSessionId(null);
-		setActiveTurn(undefined);
+			// Automatically transition to Live Mode!
+			setIsMockMode(false);
+			// Clear out fake demo sessions immediately!
+			setSessions([]);
+			setActiveSessionId(null);
+			setActiveTurn(undefined);
 
-		const result = await ahpConnection.connect(host);
-		if (result.success) {
-			await reloadLiveSessions();
-		} else {
-			alert(`Could not connect to ${host.url}: ${result.error}`);
+			const result = await ahpConnection.connect(host);
+			if (result.success) {
+				await reloadLiveSessions();
+			} else {
+				alert(`Could not connect to ${host.url}: ${result.error}`);
+			}
+		},
+		[reloadLiveSessions],
+	);
+
+	// Check URL query parameters on startup for pre-configured host (e.g. from CLI runner)
+	useEffect(() => {
+		try {
+			const params = new URLSearchParams(window.location.search);
+			const hostUrl = params.get("host") || params.get("url");
+			if (hostUrl) {
+				const autoHost: HostConfig = {
+					id: "url-host",
+					name: "URL Host",
+					url: hostUrl,
+					isDefault: true,
+				};
+				handleSaveHost(autoHost, "ephemeral");
+			}
+		} catch {
+			// ignore URL parsing errors
 		}
-	};
+	}, [handleSaveHost]);
 
 	const handleToggleMockMode = async () => {
 		if (isMockMode) {

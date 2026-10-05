@@ -9,6 +9,7 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Connection Manager:** Implemented `AhpConnection` with WebSocket URL sanitization, protocol negotiation, and connection lifecycle management.
 - [x] **Automatic Mode Transition:** Automatically switches from demo mode to live mode upon entering host credentials and clearing simulated sessions.
 - [x] **Client Vault:** Implemented `CryptoVault` using Web Crypto API AES-GCM-256 with Ephemeral (zero-knowledge) and Passphrase (PBKDF2-HMAC-SHA-256) modes.
+- [x] **npm Distribution & Executable CLI:** Packaged `agent-host-protocol-ui` as an npm package with zero-dependency standalone CLI runner (`npx agent-host-protocol-ui`), URL query pre-configuration, and programmatic path exports.
 
 ## 2. Session Navigation & Explorer (Sidebar)
 - [x] **Session Catalog:** Real remote session listing with search filter, active session selection, and modified timestamps.

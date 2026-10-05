@@ -2,8 +2,38 @@
 	"name": "agent-host-protocol-ui",
 	"version": "0.1.0",
 	"description": "Client-side web UI for the Agent Host Protocol (AHP) inspired by VS Code Agents view",
-	"type": "module",
+	"author": "Yusuke Tsutsumi <yusuke@tsutsumi.io>",
 	"license": "Apache-2.0",
+	"type": "module",
+	"main": "./dist-path.js",
+	"types": "./dist-path.d.ts",
+	"bin": {
+		"agent-host-protocol-ui": "bin/cli.js"
+	},
+	"files": [
+		"dist",
+		"bin",
+		"dist-path.js",
+		"dist-path.d.ts"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/toumorokoshi/agent-host-protocol-ui.git"
+	},
+	"bugs": {
+		"url": "https://github.com/toumorokoshi/agent-host-protocol-ui/issues"
+	},
+	"homepage": "https://github.com/toumorokoshi/agent-host-protocol-ui#readme",
+	"keywords": [
+		"agent-host-protocol",
+		"ahp",
+		"ai-agents",
+		"vs-code",
+		"ui",
+		"web-ui",
+		"agent-ui",
+		"client"
+	],
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc && vite build",
@@ -11,7 +41,8 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write .",
-		"test": "node --test"
+		"test": "node --test",
+		"prepublishOnly": "npm run build && npm run test"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
