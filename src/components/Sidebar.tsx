@@ -81,6 +81,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 										<span className="live-badge">Live</span>
 									</div>
 									<div className="session-meta">
+										{session.hostName && (
+											<>
+												<span className="session-host-tag" title={`Host: ${session.hostName}`}>
+													{session.hostName}
+												</span>
+												<span>•</span>
+											</>
+										)}
 										<Tooltip content={formatDirectoryTooltip(session.workingDirectory)}>
 											<span className="session-dir">📁 {formatDirectoryBase(session.workingDirectory)}</span>
 										</Tooltip>
@@ -146,6 +154,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 									</div>
 								</div>
 								<div className="session-meta">
+									{session.hostName && (
+										<>
+											<span className="session-host-tag" title={`Host: ${session.hostName}`}>
+												{session.hostName}
+											</span>
+											<span>•</span>
+										</>
+									)}
 									<Tooltip content={formatDirectoryTooltip(session.workingDirectory)}>
 										<span className="session-dir">📁 {formatDirectoryBase(session.workingDirectory)}</span>
 									</Tooltip>

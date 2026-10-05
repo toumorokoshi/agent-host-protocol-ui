@@ -73,6 +73,9 @@ export async function unlockAppConfiguration(passphrase: string): Promise<AppCon
 	if (!raw) return null;
 
 	if (isAppConfig(raw)) {
+		if (!raw.savedHosts || raw.savedHosts.length === 0) {
+			raw.savedHosts = [raw.currentHost];
+		}
 		return raw;
 	}
 
@@ -80,6 +83,7 @@ export async function unlockAppConfiguration(passphrase: string): Promise<AppCon
 	return {
 		version: 1,
 		currentHost: raw,
+		savedHosts: [raw],
 		lastSavedAt: new Date().toISOString(),
 	};
 }

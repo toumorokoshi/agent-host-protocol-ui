@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { hasStoredVault, unlockAppConfiguration } from "../crypto/app-config.ts";
+import { randomUUID } from "../crypto/uuid.ts";
 import type { StoragePrivacyMode } from "../crypto/vault.ts";
 import type { HostConfig } from "../types.ts";
 
@@ -23,12 +24,32 @@ declare global {
 
 interface HostModalProps {
 	currentHost: HostConfig;
+	savedHosts?: HostConfig[];
 	isOpen: boolean;
 	onClose: () => void;
-	onSave: (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => void;
+	onSave: (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string, allHosts?: HostConfig[]) => void;
+	onDeleteHost?: (hostId: string) => void;
 }
 
-export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClose, onSave }) => {
+export const HostModal: React.FC<HostModalProps> = ({
+	currentHost,
+	savedHosts = [],
+	isOpen,
+	onClose,
+	onSave,
+	onDeleteHost,
+}) => {
+	const [hostsList, setHostsList] = useState<HostConfig[]>(() => {
+		const base = savedHosts.length > 0 ? [...savedHosts] : [currentHost];
+		if (!base.some((h) => h.id === currentHost.id)) {
+			base.unshift(currentHost);
+		}
+		return base;
+	});
+
+	const [editingHostId, setEditingHostId] = useState<string>(currentHost.id);
+	const [activeHostId, setActiveHostId] = useState<string>(currentHost.id);
+
 	const [name, setName] = useState(currentHost.name);
 	const [url, setUrl] = useState(currentHost.url);
 	const [token, setToken] = useState(currentHost.token || "");
@@ -40,9 +61,17 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 	const [unlockStatus, setUnlockStatus] = useState<"idle" | "success" | "error">("idle");
 	const [unlockErrorMessage, setUnlockErrorMessage] = useState("");
 
-	// Proactively check browser password manager (Credential Management API) if fields are empty
 	useEffect(() => {
 		if (!isOpen) return;
+
+		const base = savedHosts.length > 0 ? [...savedHosts] : [currentHost];
+		if (!base.some((h) => h.id === currentHost.id)) {
+			base.unshift(currentHost);
+		}
+		setHostsList(base);
+		setEditingHostId(currentHost.id);
+		setActiveHostId(currentHost.id);
+
 		setName(currentHost.name);
 		setUrl(currentHost.url);
 		setToken(currentHost.token || "");
@@ -74,16 +103,47 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 				})
 				.catch(() => {});
 		}
-	}, [isOpen, currentHost]);
+	}, [isOpen, currentHost, savedHosts]);
+
+	const selectHostToEdit = (host: HostConfig) => {
+		setEditingHostId(host.id);
+		setName(host.name);
+		setUrl(host.url);
+		setToken(host.token || "");
+	};
+
+	const startAddingNewHost = () => {
+		const newId = `host-${randomUUID().slice(0, 8)}`;
+		setEditingHostId(newId);
+		setName("");
+		setUrl("ws://");
+		setToken("");
+	};
+
+	const removeHost = (idToRemove: string) => {
+		if (hostsList.length <= 1) return;
+		const updated = hostsList.filter((h) => h.id !== idToRemove);
+		setHostsList(updated);
+		if (onDeleteHost) onDeleteHost(idToRemove);
+
+		if (editingHostId === idToRemove) {
+			selectHostToEdit(updated[0]);
+		}
+		if (activeHostId === idToRemove) {
+			setActiveHostId(updated[0].id);
+		}
+	};
 
 	const handleUnlockVault = async () => {
 		if (!unlockPassphrase.trim()) return;
 		try {
 			const config = await unlockAppConfiguration(unlockPassphrase.trim());
 			if (config?.currentHost?.url) {
-				setUrl(config.currentHost.url);
-				setToken(config.currentHost.token || "");
-				if (config.currentHost.name) setName(config.currentHost.name);
+				const restoredHosts =
+					config.savedHosts && config.savedHosts.length > 0 ? config.savedHosts : [config.currentHost];
+				setHostsList(restoredHosts);
+				setActiveHostId(config.currentHost.id);
+				selectHostToEdit(config.currentHost);
 				setMode("passphrase");
 				setPassphrase(unlockPassphrase.trim());
 				setUnlockStatus("success");
@@ -110,7 +170,6 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 	if (!isOpen) return null;
 
 	const handleUrlChange = (val: string) => {
-		// Smart URL Decomposition: if user pastes full URL with ?tkn= or ?token=
 		try {
 			if (val.includes("?tkn=") || val.includes("?token=") || val.includes("&tkn=")) {
 				const isSecure = val.startsWith("wss://");
@@ -130,7 +189,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 				}
 			}
 		} catch {
-			// Fall through to regular URL update
+			// Fall through
 		}
 		setUrl(val);
 	};
@@ -140,9 +199,29 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 
 		const cleanUrl = url.trim();
 		const cleanToken = token.trim();
-		const cleanName = name.trim() || "Agent Host";
+		const cleanName = name.trim() || `Host (${cleanUrl})`;
 
-		// Save credentials into browser's native password manager (Chrome, Keychain, Edge, etc.)
+		// Update or append the editing host in hostsList
+		const existingIndex = hostsList.findIndex((h) => h.id === editingHostId);
+		const updatedHost: HostConfig = {
+			id: editingHostId,
+			name: cleanName,
+			url: cleanUrl,
+			token: cleanToken || undefined,
+		};
+
+		let updatedHosts: HostConfig[];
+		if (existingIndex >= 0) {
+			updatedHosts = [...hostsList];
+			updatedHosts[existingIndex] = {
+				...updatedHosts[existingIndex],
+				...updatedHost,
+			};
+		} else {
+			updatedHosts = [...hostsList, updatedHost];
+		}
+
+		// Save credentials into browser's native password manager
 		if (typeof window !== "undefined" && window.PasswordCredential && navigator.credentials && cleanToken) {
 			try {
 				const cred = new window.PasswordCredential({
@@ -152,28 +231,22 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 				});
 				navigator.credentials.store(cred).catch(() => {});
 			} catch {
-				// Ignore if browser restricts PasswordCredential
+				// Ignore
 			}
 		}
 
-		onSave(
-			{
-				...currentHost,
-				name: cleanName,
-				url: cleanUrl,
-				token: cleanToken || undefined,
-			},
-			mode,
-			passphrase,
-		);
+		// The target active host is the edited host (or activeHostId if different)
+		const targetActive = updatedHosts.find((h) => h.id === editingHostId) || updatedHost;
+
+		onSave(targetActive, mode, passphrase, updatedHosts);
 		onClose();
 	};
 
 	return (
 		<div className="modal-backdrop" onClick={onClose}>
-			<div className="modal-card" onClick={(e) => e.stopPropagation()}>
+			<div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "560px" }}>
 				<div className="modal-header">
-					<h3 className="modal-title">Configure Agent Host</h3>
+					<h3 className="modal-title">Configure Agent Hosts (AHP)</h3>
 					<button
 						type="button"
 						style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
@@ -185,14 +258,131 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 
 				<form onSubmit={handleSubmit} method="post" autoComplete="on">
 					<div className="modal-body">
+						{/* Saved Hosts List */}
+						<div className="form-group">
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									marginBottom: "6px",
+								}}
+							>
+								<label className="form-label" style={{ margin: 0 }}>
+									Configured Hosts ({hostsList.length})
+								</label>
+								<button
+									type="button"
+									style={{
+										background: "transparent",
+										border: "none",
+										color: "var(--accent-primary)",
+										fontSize: "12px",
+										cursor: "pointer",
+									}}
+									onClick={startAddingNewHost}
+								>
+									+ Add Host
+								</button>
+							</div>
+
+							<div
+								style={{
+									display: "grid",
+									gap: "6px",
+									maxHeight: "150px",
+									overflowY: "auto",
+									border: "1px solid var(--border-default)",
+									borderRadius: "var(--radius-sm)",
+									padding: "6px",
+									background: "var(--bg-canvas)",
+								}}
+							>
+								{hostsList.map((h) => {
+									const isEditing = h.id === editingHostId;
+									const isActive = h.id === activeHostId;
+									const cleanUrl = h.url.replace(/\?tkn=.*$/, "").replace(/&tkn=.*$/, "");
+									return (
+										<div
+											key={h.id}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "space-between",
+												padding: "6px 8px",
+												borderRadius: "4px",
+												background: isEditing ? "var(--bg-surface-elevated)" : "transparent",
+												border: isEditing ? "1px solid var(--accent-primary)" : "1px solid transparent",
+												cursor: "pointer",
+											}}
+											onClick={() => selectHostToEdit(h)}
+										>
+											<div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+												<span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text-primary)" }}>
+													{h.name || "Untitled"}
+												</span>
+												<span
+													style={{
+														fontSize: "11px",
+														color: "var(--text-muted)",
+														marginLeft: "8px",
+														fontFamily: "var(--font-mono)",
+													}}
+												>
+													{cleanUrl}
+												</span>
+											</div>
+											<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+												{isActive && (
+													<span
+														style={{
+															fontSize: "10px",
+															padding: "2px 6px",
+															borderRadius: "4px",
+															background: "rgba(79, 193, 255, 0.2)",
+															color: "var(--accent-primary)",
+															fontWeight: 600,
+														}}
+													>
+														Active
+													</span>
+												)}
+												{hostsList.length > 1 && (
+													<button
+														type="button"
+														style={{
+															background: "transparent",
+															border: "none",
+															color: "var(--text-muted)",
+															cursor: "pointer",
+															fontSize: "12px",
+															padding: "2px 4px",
+														}}
+														title="Remove host"
+														onClick={(e) => {
+															e.stopPropagation();
+															removeHost(h.id);
+														}}
+													>
+														✕
+													</button>
+												)}
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+
+						{/* Encrypted Vault Unlocker if detected */}
 						{hasEncryptedVault && (
 							<div
 								style={{
-									padding: "12px",
+									padding: "10px",
 									backgroundColor: "var(--bg-canvas)",
 									border: "1px solid var(--border-default)",
 									borderRadius: "var(--radius-md)",
-									marginBottom: "16px",
+									marginBottom: "14px",
 								}}
 							>
 								<div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
@@ -201,8 +391,8 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 										Encrypted Vault Detected
 									</span>
 								</div>
-								<p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "0 0 8px 0" }}>
-									Enter your master passphrase to unlock and restore previously saved host credentials.
+								<p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "0 0 6px 0" }}>
+									Enter your master passphrase to unlock all saved host credentials.
 								</p>
 								<div style={{ display: "flex", gap: "6px" }}>
 									<input
@@ -232,28 +422,29 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 									</button>
 								</div>
 								{unlockStatus === "error" && (
-									<span style={{ fontSize: "11px", color: "var(--status-error)", marginTop: "6px", display: "block" }}>
+									<span style={{ fontSize: "11px", color: "var(--status-error)", marginTop: "4px", display: "block" }}>
 										✕ {unlockErrorMessage}
 									</span>
 								)}
 								{unlockStatus === "success" && (
-									<span style={{ fontSize: "11px", color: "var(--status-live)", marginTop: "6px", display: "block" }}>
-										✓ Vault unlocked! Host credentials restored.
+									<span style={{ fontSize: "11px", color: "var(--status-live)", marginTop: "4px", display: "block" }}>
+										✓ Vault unlocked! All hosts restored.
 									</span>
 								)}
 							</div>
 						)}
 
+						{/* Host Edit Inputs */}
 						<div className="form-group">
 							<label className="form-label" htmlFor="ahp-host-name">
-								Host Name
+								Host Display Name
 							</label>
 							<input
 								id="ahp-host-name"
 								name="name"
 								type="text"
 								className="form-input"
-								placeholder="e.g. Local pi-agent-host"
+								placeholder="e.g. Local pi-agent-host or Tailscale Server"
 								value={name}
 								onChange={(e) => setName(e.target.value)}
 							/>
@@ -261,7 +452,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 
 						<div className="form-group">
 							<label className="form-label" htmlFor="ahp-host-url">
-								WebSocket URL (Username / Host Identity)
+								WebSocket URL
 							</label>
 							<input
 								id="ahp-host-url"
@@ -274,27 +465,24 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 								onChange={(e) => handleUrlChange(e.target.value)}
 								required
 							/>
-							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-								Paste full URL or connection string. Chrome and password managers save this as the account username.
-							</span>
 							{isNonLocalOrigin && isLoopbackTarget && (
 								<div
 									style={{
-										marginTop: "8px",
-										padding: "8px 10px",
-										borderRadius: "6px",
+										marginTop: "6px",
+										padding: "6px 8px",
+										borderRadius: "4px",
 										background: "rgba(234, 179, 8, 0.1)",
 										border: "1px solid rgba(234, 179, 8, 0.3)",
-										fontSize: "12px",
+										fontSize: "11px",
 										lineHeight: "1.4",
 									}}
 								>
-									<span style={{ color: "#eab308", fontWeight: 600 }}>Network Notice:</span> Targeting{" "}
-									<code>127.0.0.1</code> connects to this device itself. To connect to your workstation host, use{" "}
+									<span style={{ color: "#eab308", fontWeight: 600 }}>Notice:</span> <code>127.0.0.1</code> targets this
+									device. To connect to workstation, use{" "}
 									<button
 										type="button"
 										className="btn btn-secondary"
-										style={{ padding: "1px 6px", fontSize: "11px", margin: "2px 0 2px 4px" }}
+										style={{ padding: "1px 4px", fontSize: "10px", margin: "1px 0" }}
 										onClick={() => {
 											const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
 											setUrl(`${proto}${currentHostname}:63877`);
@@ -302,16 +490,13 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 									>
 										ws://{currentHostname}:63877
 									</button>
-									<div style={{ marginTop: "4px", fontSize: "11px", color: "var(--text-muted)" }}>
-										Ensure your AHP host was started with <code>--host 0.0.0.0</code>.
-									</div>
 								</div>
 							)}
 						</div>
 
 						<div className="form-group">
 							<label className="form-label" htmlFor="ahp-host-token">
-								Authentication Token (Password / Secret)
+								Authentication Token (Optional)
 							</label>
 							<div style={{ display: "flex", gap: "6px" }}>
 								<input
@@ -320,7 +505,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 									type={showPassword ? "text" : "password"}
 									autoComplete="current-password"
 									className="form-input"
-									placeholder="Paste token or leave empty if disabled"
+									placeholder="Paste token or leave empty"
 									value={token}
 									onChange={(e) => setToken(e.target.value)}
 									style={{ flex: 1 }}
@@ -335,23 +520,25 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 									{showPassword ? "Hide" : "Show"}
 								</button>
 							</div>
-							<span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-								Saved securely in your browser's hardware keychain (Chrome, Touch ID, Keychain) and client Web Crypto
-								vault.
-							</span>
 						</div>
 
+						{/* Security & Storage Mode */}
 						<div className="form-group">
-							<label className="form-label">Client Encryption & Storage Mode</label>
+							<label className="form-label">Client Encryption & Passphrase Security</label>
 							<select
 								className="form-input"
 								value={mode}
 								onChange={(e) => setMode(e.target.value as StoragePrivacyMode)}
 							>
+								<option value="passphrase">Passphrase Vault (All hosts encrypted under one passphrase)</option>
 								<option value="ephemeral">Ephemeral (Zero-Knowledge: keys wiped on tab close)</option>
-								<option value="passphrase">Passphrase Vault (PBKDF2 encrypted persistence)</option>
 								<option value="memory-only">Memory-Only (Strict zero disk writes)</option>
 							</select>
+							<span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "3px" }}>
+								{mode === "passphrase"
+									? "All configured AHP hosts and session credentials are encrypted together behind your master passphrase."
+									: "Session configs are kept only in temporary browser memory."}
+							</span>
 						</div>
 
 						{mode === "passphrase" && (
@@ -360,7 +547,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 								<input
 									type="password"
 									className="form-input"
-									placeholder="Enter vault passphrase"
+									placeholder="Enter master passphrase for all hosts"
 									value={passphrase}
 									onChange={(e) => setPassphrase(e.target.value)}
 									required
@@ -374,7 +561,7 @@ export const HostModal: React.FC<HostModalProps> = ({ currentHost, isOpen, onClo
 							Cancel
 						</button>
 						<button type="submit" className="btn btn-primary">
-							Connect & Save
+							Connect & Save Hosts
 						</button>
 					</div>
 				</form>

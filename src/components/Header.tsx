@@ -7,6 +7,7 @@ interface HeaderProps {
 	isMockMode: boolean;
 	themePreference: ThemePreference;
 	resolvedTheme: ResolvedTheme;
+	activeHostName?: string;
 	onSetTheme: (theme: ThemePreference) => void;
 	onOpenHostModal: () => void;
 	onNewSession: () => void;
@@ -19,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
 	isMockMode,
 	themePreference,
 	resolvedTheme,
+	activeHostName,
 	onSetTheme,
 	onOpenHostModal,
 	onNewSession,
@@ -138,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
 					type="button"
 					className="header-settings-btn"
 					onClick={onOpenHostModal}
-					title="Settings: Configure Agent Host Connection"
+					title={`Settings: Configure Agent Hosts (Current: ${isMockMode ? "Demo Mode" : activeHostName || "AHP"})`}
 					aria-label="Settings: configure agent host connection"
 				>
 					<svg
@@ -154,6 +156,21 @@ export const Header: React.FC<HeaderProps> = ({
 						<circle cx="12" cy="12" r="3" />
 						<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
 					</svg>
+					{!isMockMode && activeHostName && (
+						<span
+							style={{
+								fontSize: "11px",
+								fontWeight: 500,
+								color: "var(--text-secondary)",
+								maxWidth: "100px",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap",
+							}}
+						>
+							{activeHostName}
+						</span>
+					)}
 					<span className={`status-dot settings-status-dot ${isMockMode ? "connected" : status}`} />
 				</button>
 			</div>

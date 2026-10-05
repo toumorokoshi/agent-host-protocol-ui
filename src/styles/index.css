@@ -1469,3 +1469,18 @@ body {
 	color: var(--text-primary);
 	text-decoration: underline dotted;
 }
+
+.session-host-tag {
+	font-size: 10px;
+	padding: 1px 5px;
+	border-radius: 3px;
+	background: var(--bg-surface-elevated, #2d2d2d);
+	color: var(--accent-primary, #4fc1ff);
+	border: 1px solid var(--border-default, #3c3c3c);
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 80px;
+	display: inline-block;
+}

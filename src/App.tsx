@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ahpConnection } from "./ahp/connection.ts";
 import { formatHostConnectionError, getDefaultHost } from "./ahp/host-utils.ts";
 import { createInitialMockSessions, simulateTurnStream } from "./ahp/mock-host.ts";
+import { multiAhp } from "./ahp/multi-connection.ts";
 import { ChatTimeline } from "./components/ChatTimeline.tsx";
 import { Composer } from "./components/Composer.tsx";
 import { Header } from "./components/Header.tsx";
@@ -19,9 +20,41 @@ import { useTheme } from "./hooks/useTheme.ts";
 import type { AppConfiguration, ConnectionStatus, HostConfig, ModelInfo, UiSession, UiTurn } from "./types.ts";
 import { formatDirectoryBase, formatDirectoryTooltip } from "./utils/format-session-dir.ts";
 
+const DEMO_HOSTS: HostConfig[] = [
+	{
+		id: "local-demo",
+		name: "Localhost (Demo)",
+		url: "ws://127.0.0.1:63877",
+		isDefault: true,
+		defaultDirectory: "/Users/TZTWH7/workspace/agent-host-protocol-ui",
+		models: [
+			{
+				id: "anthropic/claude-3-7-sonnet",
+				displayName: "Claude 3.7 Sonnet",
+				provider: "anthropic",
+				supportsThinking: true,
+			},
+			{ id: "pi", displayName: "Default (Pi)", provider: "pi", supportsThinking: true },
+		],
+	},
+	{
+		id: "ts-demo",
+		name: "Tailscale Machine (Demo)",
+		url: "ws://100.115.92.2:38232",
+		defaultDirectory: "/home/yusuke/projects",
+		models: [
+			{ id: "openai/gpt-4o", displayName: "GPT-4o", provider: "openai", supportsThinking: true },
+			{ id: "meta/llama-3.3-70b", displayName: "Llama 3.3 70B", provider: "meta", supportsThinking: true },
+		],
+	},
+];
+
 export const App: React.FC = () => {
 	const { themePreference, resolvedTheme, setTheme } = useTheme();
 	const [currentHost, setCurrentHost] = useState<HostConfig>(getDefaultHost);
+	const [savedHosts, setSavedHosts] = useState<HostConfig[]>(() => [getDefaultHost()]);
+	const activePassphraseRef = useRef<string | null>(null);
+
 	const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
 	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
 	const [sessions, setSessions] = useState<UiSession[]>(createInitialMockSessions());
@@ -35,12 +68,29 @@ export const App: React.FC = () => {
 	);
 	const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-	// Remote metadata
+	// Remote metadata for currently connected host
 	const [remoteDefaultDir, setRemoteDefaultDir] = useState<string>("");
 	const [remoteModels, setRemoteModels] = useState<ModelInfo[]>([]);
 
 	const cancelMockStreamRef = useRef<(() => void) | null>(null);
 	const unsubscribeLiveSessionRef = useRef<(() => void) | null>(null);
+
+	// Helper to persist all configured hosts and settings behind the common passphrase
+	const persistConfiguration = useCallback(
+		async (hostToSave: HostConfig, hostsToSave: HostConfig[]) => {
+			const passphrase = activePassphraseRef.current;
+			if (!passphrase) return;
+			const config: AppConfiguration = {
+				version: 1,
+				currentHost: hostToSave,
+				savedHosts: hostsToSave,
+				themePreference,
+				lastSavedAt: new Date().toISOString(),
+			};
+			await saveAppConfiguration(config, passphrase);
+		},
+		[themePreference],
+	);
 
 	// Initialize vault on startup; if an encrypted vault exists, prompt user to unlock
 	useEffect(() => {
@@ -51,7 +101,7 @@ export const App: React.FC = () => {
 		}
 	}, []);
 
-	// Listen to connection status changes
+	// Listen to connection status changes on the primary active connection
 	useEffect(() => {
 		return ahpConnection.onStatusChange((status) => {
 			setConnectionStatus(status);
@@ -63,16 +113,40 @@ export const App: React.FC = () => {
 		});
 	}, []);
 
-	// Load live sessions from remote host
-	const reloadLiveSessions = useCallback(async () => {
-		const liveSessions = await ahpConnection.listSessions();
-		setSessions(liveSessions);
-		if (liveSessions.length > 0) {
-			setActiveSessionId(liveSessions[0].id);
-		} else {
-			setActiveSessionId(null);
-		}
-	}, []);
+	// Load live sessions from primary host and any other saved hosts
+	const reloadLiveSessions = useCallback(
+		async (targetHost?: HostConfig, additionalHosts?: HostConfig[]) => {
+			const primary = targetHost || currentHost;
+			const primarySessions = await ahpConnection.listSessions();
+			const taggedPrimary: UiSession[] = primarySessions.map((s) => ({
+				...s,
+				hostId: primary.id,
+				hostName: primary.name,
+			}));
+
+			let allSessions: UiSession[] = [...taggedPrimary];
+			const others = (additionalHosts || savedHosts).filter((h) => h.id !== primary.id);
+			for (const other of others) {
+				try {
+					const otherSessions = await multiAhp.listSessionsForHost(other);
+					allSessions = [...allSessions, ...otherSessions];
+				} catch {
+					// Ignore unreachable hosts in background poll
+				}
+			}
+
+			setSessions(allSessions);
+			if (allSessions.length > 0) {
+				setActiveSessionId((prev) => {
+					if (prev && allSessions.some((s) => s.id === prev)) return prev;
+					return allSessions[0].id;
+				});
+			} else {
+				setActiveSessionId(null);
+			}
+		},
+		[currentHost, savedHosts],
+	);
 
 	// Subscribe to the active session when it changes in Live Mode
 	useEffect(() => {
@@ -122,11 +196,23 @@ export const App: React.FC = () => {
 
 	const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
-	const handleSelectSession = (id: string) => {
+	const handleSelectSession = async (id: string) => {
 		if (activeTurn) {
 			if (!confirm("A turn is currently streaming. Switch session and cancel it?")) return;
 			handleCancelTurn();
 		}
+
+		const targetSession = sessions.find((s) => s.id === id);
+		if (targetSession?.hostId && targetSession.hostId !== currentHost.id) {
+			const targetHost = savedHosts.find((h) => h.id === targetSession.hostId);
+			if (targetHost) {
+				setCurrentHost(targetHost);
+				if (!isMockMode) {
+					await ahpConnection.connect(targetHost);
+				}
+			}
+		}
+
 		setActiveSessionId(id);
 	};
 
@@ -154,9 +240,17 @@ export const App: React.FC = () => {
 		workingDirectory: string,
 		model: string,
 		thinkingLevel: "none" | "low" | "medium" | "high",
+		hostId?: string,
 	) => {
-		if (!isMockMode && connectionStatus === "connected") {
+		const targetHost = (hostId ? savedHosts.find((h) => h.id === hostId) : null) || currentHost;
+
+		if (!isMockMode) {
 			try {
+				if (targetHost.id !== currentHost.id) {
+					setCurrentHost(targetHost);
+					await ahpConnection.connect(targetHost);
+				}
+
 				const newSessionId = await ahpConnection.createSession({
 					title,
 					workingDirectory,
@@ -164,11 +258,12 @@ export const App: React.FC = () => {
 				});
 
 				// Refresh remote sessions
-				await reloadLiveSessions();
+				await reloadLiveSessions(targetHost);
 				setActiveSessionId(newSessionId);
 				return;
-			} catch (err: any) {
-				alert(`Failed to create remote session: ${err?.message || err}`);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : String(err);
+				alert(`Failed to create remote session on ${targetHost.name}: ${msg}`);
 				return;
 			}
 		}
@@ -186,11 +281,121 @@ export const App: React.FC = () => {
 			queuedMessages: [],
 			skills: activeSession?.skills || [],
 			turns: [],
+			hostId: targetHost.id,
+			hostName: targetHost.name,
 		};
 
 		setSessions((prev) => [newSession, ...prev]);
 		setActiveSessionId(newSession.id);
 	};
+
+	const handleFetchHostInfo = useCallback(
+		async (host: HostConfig): Promise<{ defaultDirectory: string; models: ModelInfo[] }> => {
+			if (isMockMode) {
+				if (host.id === "ts-demo") {
+					return {
+						defaultDirectory: "/home/yusuke/projects",
+						models: [
+							{ id: "openai/gpt-4o", displayName: "GPT-4o", provider: "openai", supportsThinking: true },
+							{ id: "meta/llama-3.3-70b", displayName: "Llama 3.3 70B", provider: "meta", supportsThinking: true },
+						],
+					};
+				}
+				return {
+					defaultDirectory: "/Users/TZTWH7/workspace/agent-host-protocol-ui",
+					models: [
+						{
+							id: "anthropic/claude-3-7-sonnet",
+							displayName: "Claude 3.7 Sonnet",
+							provider: "anthropic",
+							supportsThinking: true,
+						},
+						{ id: "pi", displayName: "Default (Pi)", provider: "pi", supportsThinking: true },
+					],
+				};
+			}
+
+			const info = await multiAhp.fetchHostInfo(host);
+			setSavedHosts((prev) =>
+				prev.map((h) =>
+					h.id === host.id ? { ...h, defaultDirectory: info.defaultDirectory, models: info.models } : h,
+				),
+			);
+			return info;
+		},
+		[isMockMode],
+	);
+
+	const handleAddHostFromModal = useCallback(
+		async (newHost: HostConfig): Promise<{ success: boolean; error?: string; host?: HostConfig }> => {
+			if (isMockMode) {
+				// Switch to Live Mode upon configuring a real host
+				setIsMockMode(false);
+				setSessions([]);
+				setActiveSessionId(null);
+				setActiveTurn(undefined);
+
+				const res = await multiAhp.connectHost(newHost);
+				if (!res.success) {
+					return { success: false, error: res.error || "Connection to host failed" };
+				}
+				const conn = multiAhp.getConnection(newHost.id);
+				const info = conn?.getRemoteInfo();
+				const enriched: HostConfig = {
+					...newHost,
+					defaultDirectory: info?.defaultDirectory,
+					models: info?.models,
+				};
+				const updated = [enriched];
+				setSavedHosts(updated);
+				setCurrentHost(enriched);
+				await ahpConnection.connect(enriched);
+				await reloadLiveSessions(enriched, updated);
+				await persistConfiguration(enriched, updated);
+				return { success: true, host: enriched };
+			}
+
+			const res = await multiAhp.connectHost(newHost);
+			if (!res.success) {
+				return { success: false, error: res.error || "Connection to host failed" };
+			}
+			const conn = multiAhp.getConnection(newHost.id);
+			const info = conn?.getRemoteInfo();
+			const enriched: HostConfig = {
+				...newHost,
+				defaultDirectory: info?.defaultDirectory,
+				models: info?.models,
+			};
+
+			const updated = [...savedHosts, enriched];
+			setSavedHosts(updated);
+			await persistConfiguration(currentHost, updated);
+			return { success: true, host: enriched };
+		},
+		[savedHosts, currentHost, isMockMode, persistConfiguration, reloadLiveSessions],
+	);
+
+	const handleDeleteHost = useCallback(
+		async (hostId: string) => {
+			if (savedHosts.length <= 1) return;
+			const updatedHosts = savedHosts.filter((h) => h.id !== hostId);
+			setSavedHosts(updatedHosts);
+			multiAhp.disconnectHost(hostId);
+
+			let nextCurrent = currentHost;
+			if (currentHost.id === hostId) {
+				nextCurrent = updatedHosts[0];
+				setCurrentHost(nextCurrent);
+				if (!isMockMode) {
+					await ahpConnection.connect(nextCurrent);
+					await reloadLiveSessions(nextCurrent, updatedHosts);
+				}
+			}
+
+			await persistConfiguration(nextCurrent, updatedHosts);
+		},
+		[savedHosts, currentHost, isMockMode, reloadLiveSessions, persistConfiguration],
+	);
 
 	const handleSendMessage = async (text: string, isSteering: boolean) => {
 		if (!activeSession) return;
@@ -252,7 +457,6 @@ export const App: React.FC = () => {
 			toolCalls: [],
 			state: "streaming",
 		};
-
 		setActiveTurn(initialTurn);
 
 		cancelMockStreamRef.current = simulateTurnStream(
@@ -270,8 +474,8 @@ export const App: React.FC = () => {
 								s.id === activeSession.id
 									? {
 											...s,
+											turns: [...s.turns, { ...finalTurn, state: "complete" }],
 											modifiedAt: new Date().toISOString(),
-											turns: [...s.turns, finalTurn],
 										}
 									: s,
 							),
@@ -280,20 +484,19 @@ export const App: React.FC = () => {
 					return undefined;
 				});
 
+				// Process next queued message if any
 				setTimeout(() => {
 					setSessions((prev) => {
 						const current = prev.find((s) => s.id === activeSession.id);
 						if (current && current.queuedMessages.length > 0) {
-							const [nextMsg, ...remainingQueue] = current.queuedMessages;
-							const updatedSessions = prev.map((s) =>
-								s.id === activeSession.id ? { ...s, queuedMessages: remainingQueue } : s,
-							);
-							handleSendMessage(nextMsg, false);
-							return updatedSessions;
+							const [nextPrompt, ...remaining] = current.queuedMessages;
+							const updated = prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: remaining } : s));
+							setTimeout(() => handleSendMessage(nextPrompt, false), 50);
+							return updated;
 						}
 						return prev;
 					});
-				}, 300);
+				}, 500);
 			},
 		);
 	};
@@ -361,6 +564,10 @@ export const App: React.FC = () => {
 				return { success: false, error: "Incorrect passphrase. Please try again." };
 			}
 
+			activePassphraseRef.current = passphrase;
+
+			const hosts = config.savedHosts && config.savedHosts.length > 0 ? config.savedHosts : [config.currentHost];
+			setSavedHosts(hosts);
 			setCurrentHost(config.currentHost);
 			if (config.themePreference) {
 				setTheme(config.themePreference);
@@ -375,7 +582,7 @@ export const App: React.FC = () => {
 
 			const result = await ahpConnection.connect(config.currentHost);
 			if (result.success) {
-				await reloadLiveSessions();
+				await reloadLiveSessions(config.currentHost, hosts);
 			} else {
 				const diag = formatHostConnectionError(config.currentHost.url, result.error);
 				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
@@ -407,37 +614,45 @@ export const App: React.FC = () => {
 		}
 	};
 
-	/**
-	 * Automatically switches from demo mode to live mode when user enters host credentials.
-	 * Clears fake demo sessions so that only real live sessions appear!
-	 */
 	const handleSaveHost = useCallback(
-		async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string) => {
+		async (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string, allHosts?: HostConfig[]) => {
+			if (passphrase) {
+				activePassphraseRef.current = passphrase;
+			}
+
+			const updatedHosts = allHosts && allHosts.length > 0 ? allHosts : [host];
+			if (!updatedHosts.some((h) => h.id === host.id)) {
+				updatedHosts.push(host);
+			}
+
+			setSavedHosts(updatedHosts);
 			setCurrentHost(host);
 
-			if (mode === "passphrase" && passphrase) {
+			const activePass = passphrase || activePassphraseRef.current;
+			if (mode === "passphrase" && activePass) {
 				const config: AppConfiguration = {
 					version: 1,
 					currentHost: host,
+					savedHosts: updatedHosts,
 					themePreference,
 					lastSavedAt: new Date().toISOString(),
 				};
-				await saveAppConfiguration(config, passphrase);
-			} else {
+				await saveAppConfiguration(config, activePass);
+			} else if (mode !== "passphrase") {
+				activePassphraseRef.current = null;
 				clearStoredVault();
 				await vault.init(mode);
 			}
 
 			// Automatically transition to Live Mode!
 			setIsMockMode(false);
-			// Clear out fake demo sessions immediately!
 			setSessions([]);
 			setActiveSessionId(null);
 			setActiveTurn(undefined);
 
 			const result = await ahpConnection.connect(host);
 			if (result.success) {
-				await reloadLiveSessions();
+				await reloadLiveSessions(host, updatedHosts);
 			} else {
 				const diag = formatHostConnectionError(host.url, result.error);
 				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
@@ -476,7 +691,7 @@ export const App: React.FC = () => {
 
 			const result = await ahpConnection.connect(currentHost);
 			if (result.success) {
-				await reloadLiveSessions();
+				await reloadLiveSessions(currentHost, savedHosts);
 			} else {
 				const diag = formatHostConnectionError(currentHost.url, result.error);
 				const extra = diag.guidance ? `\n\n${diag.guidance}` : "";
@@ -497,37 +712,33 @@ export const App: React.FC = () => {
 		if (!activeSession) return;
 		setSessions((prev) =>
 			prev.map((s) =>
-				s.id === activeSession.id
-					? {
-							...s,
-							queuedMessages: s.queuedMessages.filter((_, i) => i !== index),
-						}
-					: s,
+				s.id === activeSession.id ? { ...s, queuedMessages: s.queuedMessages.filter((_, i) => i !== index) } : s,
 			),
 		);
 	};
 
-	// Model list for session creation: remote models in live mode, sample models in demo mode
-	const availableModels: ModelInfo[] =
-		!isMockMode && remoteModels.length > 0
+	const availableModels =
+		remoteModels.length > 0
 			? remoteModels
-			: [
-					{
-						id: "anthropic/claude-3-7-sonnet",
-						displayName: "Claude 3.7 Sonnet",
-						provider: "anthropic",
-						supportsThinking: true,
-					},
-					{ id: "openai/gpt-4o", displayName: "GPT-4o", provider: "openai" },
-					{ id: "deepseek/deepseek-r1", displayName: "DeepSeek R1", provider: "deepseek", supportsThinking: true },
-					{ id: "google/gemini-2.5-pro", displayName: "Gemini 2.5 Pro", provider: "google" },
-				];
+			: activeSession
+				? [
+						{
+							id: activeSession.model,
+							displayName: activeSession.model.split("/").pop() || activeSession.model,
+							provider: activeSession.model.split("/")[0] || "custom",
+							supportsThinking: true,
+						},
+					]
+				: [];
+
+	const effectiveHosts = isMockMode ? DEMO_HOSTS : savedHosts;
 
 	return (
 		<>
 			<Header
 				status={connectionStatus}
 				isMockMode={isMockMode}
+				activeHostName={currentHost.name}
 				themePreference={themePreference}
 				resolvedTheme={resolvedTheme}
 				onSetTheme={setTheme}
@@ -537,15 +748,15 @@ export const App: React.FC = () => {
 				onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
 			/>
 
-			<div className="workspace-layout">
+			<div className="app-layout">
 				<Sidebar
 					sessions={sessions}
 					activeSessionId={activeSessionId}
-					isOpen={isMobileSidebarOpen}
-					onClose={() => setIsMobileSidebarOpen(false)}
 					onSelectSession={handleSelectSession}
 					onDisposeSession={handleDisposeSession}
 					onRenameSession={handleRenameSession}
+					isOpen={isMobileSidebarOpen}
+					onClose={() => setIsMobileSidebarOpen(false)}
 				/>
 
 				<main className="chat-view">
@@ -578,6 +789,11 @@ export const App: React.FC = () => {
 										<div className="chat-title">{activeSession.title}</div>
 									</div>
 									<div className="chat-meta">
+										{activeSession.hostName && (
+											<span className="chat-meta-item" title={`Connected AHP: ${activeSession.hostName}`}>
+												🌐 {activeSession.hostName}
+											</span>
+										)}
 										<Tooltip content={formatDirectoryTooltip(activeSession.workingDirectory)}>
 											<span className="chat-meta-item" style={{ cursor: "pointer" }}>
 												📁 {formatDirectoryBase(activeSession.workingDirectory)}
@@ -655,17 +871,23 @@ export const App: React.FC = () => {
 
 			<HostModal
 				currentHost={currentHost}
+				savedHosts={savedHosts}
 				isOpen={isHostModalOpen}
 				onClose={() => setIsHostModalOpen(false)}
 				onSave={handleSaveHost}
+				onDeleteHost={handleDeleteHost}
 			/>
 
 			<NewSessionModal
 				isOpen={isNewSessionModalOpen}
+				hosts={effectiveHosts}
+				activeHostId={currentHost.id}
 				defaultDirectory={remoteDefaultDir}
 				availableModels={availableModels}
 				existingSessions={sessions}
 				onClose={() => setIsNewSessionModalOpen(false)}
+				onFetchHostInfo={handleFetchHostInfo}
+				onAddHost={handleAddHostFromModal}
 				onCreate={handleCreateSession}
 			/>
 

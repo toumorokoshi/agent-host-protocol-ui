@@ -8,6 +8,8 @@ export interface HostConfig {
 	url: string; // e.g., ws://127.0.0.1:63877
 	token?: string;
 	isDefault?: boolean;
+	defaultDirectory?: string;
+	models?: ModelInfo[];
 }
 
 export interface AppConfiguration {
@@ -94,4 +96,6 @@ export interface UiSession {
 	activeTurn?: UiTurn;
 	queuedMessages: string[];
 	skills: SkillItem[];
+	hostId?: string;
+	hostName?: string;
 }

@@ -31,6 +31,8 @@ export function createInitialMockSessions(): UiSession[] {
 			thinkingLevel: "high",
 			queuedMessages: ["Run unit tests once you finish"],
 			skills: SAMPLE_SKILLS,
+			hostId: "local-demo",
+			hostName: "Localhost (Demo)",
 			turns: [
 				{
 					id: "turn-1",
@@ -76,6 +78,8 @@ export function createInitialMockSessions(): UiSession[] {
 			thinkingLevel: "none",
 			queuedMessages: [],
 			skills: SAMPLE_SKILLS,
+			hostId: "ts-demo",
+			hostName: "Tailscale Machine (Demo)",
 			turns: [
 				{
 					id: "turn-init",

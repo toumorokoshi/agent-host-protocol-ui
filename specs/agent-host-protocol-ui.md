@@ -26,7 +26,9 @@ Provide a rich, responsive, fully client-side web application running in a stand
 The VS Code Agents View represents Microsoft's architecture for decoupling agent execution hosts from agent user interfaces. A comprehensive study of the VS Code Agents view reveals the following key capabilities that this UI must support:
 
 ### 2.1 Host Connection & Multi-Host Management
-- **Connection Configuration:** Users can add multiple remote agent hosts via WebSocket URL (including authentication tokens, e.g. `ws://127.0.0.1:63877?tkn=...`).
+- **Connection Configuration:** Users can add and manage multiple remote agent hosts via WebSocket URL (including authentication tokens, e.g. `ws://127.0.0.1:63877?tkn=...`).
+- **Multi-AHP Selection:** In the New Session dialog, users can select which AHP host to launch the session on, which dynamically populates the working directory dropdown and model list for that specific AHP. Users can also connect and add a new AHP inline directly from the dialog.
+- **Unified Master Passphrase:** All configured AHP hosts, tokens, URLs, default directories, models, and session configurations are encrypted together under a single master passphrase in the client-side vault.
 - **Browser Password Manager Integration:** Supports saving the WebSocket Host URL as a Username and the authentication token as a Password in Chrome Password Manager, Apple Keychain, and W3C `navigator.credentials` for seamless 1-click autofill and biometric login.
 - **Connection Lifecycle & Status:** Real-time visual status badge (Connecting, Connected, Disconnected, Reconnecting, Protocol Handshake Error).
 - **Protocol Negotiation:** Handles protocol version negotiation (0.9.x through 1.x) during `initialize`.
@@ -282,7 +284,7 @@ Because user interactions with AI agents often involve proprietary codebases, co
    - **Encryption Standard:** AES-GCM with a 256-bit key (`SubtleCrypto` in the native Web Crypto API).
    - **Key Derivation & Storage Modes:**
      - **Mode A: Ephemeral / Zero-Knowledge Session (Default):** A cryptographically strong 256-bit key is generated via `crypto.getRandomValues()` and held exclusively in memory (`sessionStorage` or application memory). If the browser tab or window is closed, the key is permanently destroyed, rendering any cached data unreadable.
-     - **Mode B: Passphrase-Protected Vault:** The entire application configuration (host connection, auth tokens, and preferences) is encrypted with AES-256 derived from a common master passphrase using **PBKDF2-HMAC-SHA-256** (minimum 600,000 iterations and a unique 16-byte cryptographic salt). When stored configuration is detected upon loading the UI, the user is immediately prompted with an unlock modal to enter the passphrase and restore all settings.
+     - **Mode B: Passphrase-Protected Vault:** The entire application configuration—including all configured AHP host connections, authentication tokens, default directories, models, and session configurations—is encrypted with AES-256 derived from a common master passphrase using **PBKDF2-HMAC-SHA-256** (minimum 600,000 iterations and a unique 16-byte cryptographic salt). When stored configuration is detected upon loading the UI, the user is immediately prompted with an unlock modal to enter the passphrase and restore all settings. Any newly added or updated AHP configurations are automatically re-encrypted under the same passphrase in memory.
      - **Mode C: Ephemeral-Only (No Disk Writes):** A strict memory-only mode where no conversation history, drafts, or tokens ever touch `localStorage` or `IndexedDB`. All state lives in JavaScript heap memory and is wiped on page unload.
 
 4. **Credential & Token Vault:**
