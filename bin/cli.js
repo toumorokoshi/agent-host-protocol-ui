@@ -94,7 +94,7 @@ for (let i = 0; i < args.length; i++) {
 agent-host-protocol-ui - Client-side UI for Agent Host Protocol
 
 Usage:
-  npx agent-host-protocol-ui [options]
+  npx @toumorokoshi/agent-host-protocol-ui [options]
 
 Options:
   -b, --bind <address>       Hostname/IP to listen on (e.g. 0.0.0.0 or localhost, default: localhost)

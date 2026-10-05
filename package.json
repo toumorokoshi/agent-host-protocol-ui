@@ -1,6 +1,6 @@
 {
-	"name": "agent-host-protocol-ui",
-	"version": "0.1.2",
+	"name": "@toumorokoshi/agent-host-protocol-ui",
+	"version": "0.1.0",
 	"description": "Client-side web UI for the Agent Host Protocol (AHP) inspired by VS Code Agents view",
 	"author": "Yusuke Tsutsumi <yusuke@tsutsumi.io>",
 	"license": "Apache-2.0",
@@ -9,6 +9,9 @@
 	"types": "./dist-path.d.ts",
 	"bin": {
 		"agent-host-protocol-ui": "bin/cli.js"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"files": [
 		"dist",
