@@ -6,6 +6,34 @@ export interface LocationLike {
 }
 
 /**
+ * Ensures literal IPv6 addresses in URLs are wrapped in square brackets per RFC 3986.
+ * e.g., "ws://fd7a:115c::1:63877" -> "ws://[fd7a:115c::1]:63877"
+ * e.g., "fd7a:115c::1:63877" -> "[fd7a:115c::1]:63877"
+ * e.g., "::1" -> "[::1]"
+ */
+export function formatIpv6Url(rawUrl: string): string {
+	if (!rawUrl || (rawUrl.includes("[") && rawUrl.includes("]"))) return rawUrl;
+	const protoMatch = rawUrl.match(/^(wss?:\/\/|https?:\/\/)/);
+	const proto = protoMatch ? protoMatch[0] : "";
+	const rest = rawUrl.slice(proto.length);
+	const [hostPort, ...pathRest] = rest.split(/(?=[/?#])/);
+	const pathSuffix = pathRest.join("");
+
+	const colons = (hostPort.match(/:/g) || []).length;
+	if (colons >= 2) {
+		const lastColon = hostPort.lastIndexOf(":");
+		const afterLastColon = hostPort.slice(lastColon + 1);
+		// If last segment is a numeric port (1-65535) and preceding part has at least 2 colons:
+		if (/^\d{1,5}$/.test(afterLastColon) && (hostPort.slice(0, lastColon).match(/:/g) || []).length >= 2) {
+			const ip = hostPort.slice(0, lastColon);
+			return `${proto}[${ip}]:${afterLastColon}${pathSuffix}`;
+		}
+		return `${proto}[${hostPort}]${pathSuffix}`;
+	}
+	return rawUrl;
+}
+
+/**
  * Derives the initial default HostConfig based on the current window location.
  *
  * When accessed from localhost or 127.0.0.1, defaults to ws://127.0.0.1:63877.
@@ -21,7 +49,12 @@ export function getDefaultHost(loc?: LocationLike): HostConfig {
 	const proto = isHttps ? "wss://" : "ws://";
 
 	const isLocal =
-		hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0" || !hostname;
+		hostname === "localhost" ||
+		hostname === "127.0.0.1" ||
+		hostname === "::1" ||
+		hostname === "[::1]" ||
+		hostname === "0.0.0.0" ||
+		!hostname;
 
 	if (!isLocal) {
 		return {
@@ -60,9 +93,11 @@ export function formatHostConnectionError(
 		Boolean(currentHostname) &&
 		currentHostname !== "localhost" &&
 		currentHostname !== "127.0.0.1" &&
-		currentHostname !== "::1";
+		currentHostname !== "::1" &&
+		currentHostname !== "[::1]";
 
-	const isLoopbackTarget = targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost");
+	const isLoopbackTarget =
+		targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost") || targetUrl.includes("::1");
 	const isTailscale =
 		currentHostname.includes(".ts.net") ||
 		targetUrl.includes(".ts.net") ||

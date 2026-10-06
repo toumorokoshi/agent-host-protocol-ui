@@ -8,6 +8,7 @@ import { AhpClient, AhpStateMirror, type Subscription } from "@microsoft/agent-h
 import { WebSocketTransport } from "@microsoft/agent-host-protocol/ws";
 import { randomUUID } from "../crypto/uuid.ts";
 import type { ConnectionStatus, HostConfig, ModelInfo, SkillItem, UiSession, UiToolCall, UiTurn } from "../types.ts";
+import { formatIpv6Url } from "./host-utils.ts";
 
 export function pathFromFileUri(uri: string): string {
 	if (uri.startsWith("file://")) {
@@ -84,7 +85,7 @@ export class AhpConnection {
 		this.setStatus("connecting");
 
 		try {
-			let fullUrl = host.url;
+			let fullUrl = formatIpv6Url(host.url);
 			if (host.token && !fullUrl.includes("tkn=")) {
 				const separator = fullUrl.includes("?") ? "&" : "?";
 				fullUrl = `${fullUrl}${separator}tkn=${encodeURIComponent(host.token)}`;

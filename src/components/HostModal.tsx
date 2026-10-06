@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { formatIpv6Url } from "../ahp/host-utils.ts";
 import { hasStoredVault, unlockAppConfiguration } from "../crypto/app-config.ts";
 import { randomUUID } from "../crypto/uuid.ts";
 import type { StoragePrivacyMode } from "../crypto/vault.ts";
@@ -118,7 +119,8 @@ export const HostModal: React.FC<HostModalProps> = ({
 		Boolean(currentHostname) &&
 		currentHostname !== "localhost" &&
 		currentHostname !== "127.0.0.1" &&
-		currentHostname !== "::1";
+		currentHostname !== "::1" &&
+		currentHostname !== "[::1]";
 	const isLoopbackTarget = url.includes("127.0.0.1") || url.includes("localhost");
 	const isMixedContentTarget = isHttps && url.trim().startsWith("ws://");
 	const isTailscaleHost =
@@ -212,6 +214,7 @@ export const HostModal: React.FC<HostModalProps> = ({
 		} else if (!cleanUrl.startsWith("ws://") && !cleanUrl.startsWith("wss://") && cleanUrl.length > 0) {
 			cleanUrl = `${isHttps ? "wss://" : "ws://"}${cleanUrl}`;
 		}
+		cleanUrl = formatIpv6Url(cleanUrl);
 
 		if (isHttps && cleanUrl.startsWith("ws://")) {
 			alert(

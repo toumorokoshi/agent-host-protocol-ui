@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatHostConnectionError, getDefaultHost } from "../src/ahp/host-utils.ts";
+import { formatHostConnectionError, formatIpv6Url, getDefaultHost } from "../src/ahp/host-utils.ts";
 
 describe("getDefaultHost", () => {
 	it("returns ws://127.0.0.1:63877 on localhost", () => {
@@ -14,10 +14,20 @@ describe("getDefaultHost", () => {
 		assert.equal(host.url, "ws://127.0.0.1:63877");
 	});
 
+	it("returns ws://127.0.0.1:63877 on IPv6 loopback [::1]", () => {
+		const host = getDefaultHost({ hostname: "[::1]", protocol: "http:" });
+		assert.equal(host.url, "ws://127.0.0.1:63877");
+	});
+
 	it("adapts to network IP when accessed remotely", () => {
 		const host = getDefaultHost({ hostname: "10.0.0.148", protocol: "http:" });
 		assert.equal(host.url, "ws://10.0.0.148:63877");
 		assert.equal(host.name, "AHP Host (10.0.0.148)");
+	});
+
+	it("adapts to IPv6 address when accessed remotely", () => {
+		const host = getDefaultHost({ hostname: "[fd7a:115c:a1e0::1]", protocol: "http:" });
+		assert.equal(host.url, "ws://[fd7a:115c:a1e0::1]:63877");
 	});
 
 	it("adapts to custom domain when accessed remotely", () => {
@@ -33,6 +43,41 @@ describe("getDefaultHost", () => {
 	it("uses wss:// on HTTPS remote origin", () => {
 		const host = getDefaultHost({ hostname: "agent.example.com", protocol: "https:" });
 		assert.equal(host.url, "wss://agent.example.com:63877");
+	});
+});
+
+describe("formatIpv6Url", () => {
+	it("wraps unbracketed IPv6 URL with port in RFC 3986 brackets", () => {
+		assert.equal(
+			formatIpv6Url("ws://fd7a:115c:a1e0::1a36:d761:63877"),
+			"ws://[fd7a:115c:a1e0::1a36:d761]:63877",
+		);
+	});
+
+	it("preserves query parameters and tokens on unbracketed IPv6", () => {
+		assert.equal(
+			formatIpv6Url("ws://fd7a:115c:a1e0::1a36:d761:63877?tkn=mytoken"),
+			"ws://[fd7a:115c:a1e0::1a36:d761]:63877?tkn=mytoken",
+		);
+	});
+
+	it("wraps raw unbracketed IPv6 host without protocol", () => {
+		assert.equal(
+			formatIpv6Url("fd7a:115c:a1e0::1a36:d761:63877"),
+			"[fd7a:115c:a1e0::1a36:d761]:63877",
+		);
+	});
+
+	it("leaves already bracketed IPv6 unchanged", () => {
+		assert.equal(
+			formatIpv6Url("ws://[fd7a:115c:a1e0::1a36:d761]:63877"),
+			"ws://[fd7a:115c:a1e0::1a36:d761]:63877",
+		);
+	});
+
+	it("leaves IPv4 addresses unchanged", () => {
+		assert.equal(formatIpv6Url("ws://127.0.0.1:63877"), "ws://127.0.0.1:63877");
+		assert.equal(formatIpv6Url("http://100.106.215.96:5173"), "http://100.106.215.96:5173");
 	});
 });
 

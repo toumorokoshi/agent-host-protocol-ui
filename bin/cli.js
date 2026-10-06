@@ -34,8 +34,12 @@ function getNetworkIps() {
 			const netInterface = interfaces[name];
 			if (!netInterface) continue;
 			for (const iface of netInterface) {
-				if (iface.family === "IPv4" && !iface.internal) {
-					ips.push(iface.address);
+				if (!iface.internal) {
+					if (iface.family === "IPv4") {
+						ips.push(iface.address);
+					} else if (iface.family === "IPv6" && !iface.address.startsWith("fe80:")) {
+						ips.push(`[${iface.address}]`);
+					}
 				}
 			}
 		}
