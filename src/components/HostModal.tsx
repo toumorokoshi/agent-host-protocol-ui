@@ -1,6 +1,6 @@
 import type React from "react";
-import { useEffect, useState } from "react";
-import { formatIpv6Url } from "../ahp/host-utils.ts";
+import { useEffect, useRef, useState } from "react";
+import { formatIpv6Url, scrubUrlSearchParams } from "../ahp/host-utils.ts";
 import { hasStoredVault, unlockAppConfiguration } from "../crypto/app-config.ts";
 import { randomUUID } from "../crypto/uuid.ts";
 import type { StoragePrivacyMode } from "../crypto/vault.ts";
@@ -27,6 +27,8 @@ interface HostModalProps {
 	currentHost: HostConfig;
 	savedHosts?: HostConfig[];
 	isOpen: boolean;
+	isVaultUnlocked?: boolean;
+	activePassphrase?: string;
 	onClose: () => void;
 	onSave: (host: HostConfig, mode: StoragePrivacyMode, passphrase?: string, allHosts?: HostConfig[]) => void;
 	onDeleteHost?: (hostId: string) => void;
@@ -36,6 +38,8 @@ export const HostModal: React.FC<HostModalProps> = ({
 	currentHost,
 	savedHosts = [],
 	isOpen,
+	isVaultUnlocked = false,
+	activePassphrase,
 	onClose,
 	onSave,
 	onDeleteHost,
@@ -61,50 +65,56 @@ export const HostModal: React.FC<HostModalProps> = ({
 	const [unlockPassphrase, setUnlockPassphrase] = useState("");
 	const [unlockStatus, setUnlockStatus] = useState<"idle" | "success" | "error">("idle");
 	const [unlockErrorMessage, setUnlockErrorMessage] = useState("");
+	const prevIsOpenRef = useRef(false);
 
 	useEffect(() => {
-		if (!isOpen) return;
+		if (isOpen && !prevIsOpenRef.current) {
+			const base = savedHosts.length > 0 ? [...savedHosts] : [currentHost];
+			if (!base.some((h) => h.id === currentHost.id)) {
+				base.unshift(currentHost);
+			}
+			setHostsList(base);
+			setEditingHostId(currentHost.id);
+			setActiveHostId(currentHost.id);
 
-		const base = savedHosts.length > 0 ? [...savedHosts] : [currentHost];
-		if (!base.some((h) => h.id === currentHost.id)) {
-			base.unshift(currentHost);
-		}
-		setHostsList(base);
-		setEditingHostId(currentHost.id);
-		setActiveHostId(currentHost.id);
+			setName(currentHost.name);
+			setUrl(currentHost.url);
+			setToken(currentHost.token || "");
 
-		setName(currentHost.name);
-		setUrl(currentHost.url);
-		setToken(currentHost.token || "");
+			if (hasStoredVault()) {
+				setHasEncryptedVault(!isVaultUnlocked);
+				setMode("passphrase");
+				if (activePassphrase) {
+					setPassphrase(activePassphrase);
+				}
+			} else {
+				setHasEncryptedVault(false);
+			}
 
-		if (hasStoredVault()) {
-			setHasEncryptedVault(true);
-			setMode("passphrase");
-		} else {
-			setHasEncryptedVault(false);
-		}
-
-		if (
-			typeof window !== "undefined" &&
-			navigator.credentials &&
-			!currentHost.token &&
-			(!currentHost.url || currentHost.url === "ws://127.0.0.1:63877")
-		) {
-			navigator.credentials
-				.get({ password: true, mediation: "optional" } as CredentialRequestOptions)
-				.then((cred) => {
-					const passwordCred = cred as WebPasswordCredential | null;
-					if (passwordCred?.id && passwordCred.password) {
-						setUrl(passwordCred.id);
-						setToken(passwordCred.password);
-						if (passwordCred.name && passwordCred.name !== passwordCred.id) {
-							setName(passwordCred.name);
+			if (
+				typeof window !== "undefined" &&
+				navigator.credentials &&
+				!hasStoredVault() &&
+				!currentHost.token &&
+				(!currentHost.url || currentHost.url === "ws://127.0.0.1:63877")
+			) {
+				navigator.credentials
+					.get({ password: true, mediation: "optional" } as CredentialRequestOptions)
+					.then((cred) => {
+						const passwordCred = cred as WebPasswordCredential | null;
+						if (passwordCred?.id && passwordCred.password) {
+							setUrl(passwordCred.id);
+							setToken(passwordCred.password);
+							if (passwordCred.name && passwordCred.name !== passwordCred.id) {
+								setName(passwordCred.name);
+							}
 						}
-					}
-				})
-				.catch(() => {});
+					})
+					.catch(() => {});
+			}
 		}
-	}, [isOpen, currentHost, savedHosts]);
+		prevIsOpenRef.current = isOpen;
+	}, [isOpen, currentHost, savedHosts, isVaultUnlocked, activePassphrase]);
 
 	const selectHostToEdit = (host: HostConfig) => {
 		setEditingHostId(host.id);
@@ -163,8 +173,13 @@ export const HostModal: React.FC<HostModalProps> = ({
 				selectHostToEdit(config.currentHost);
 				setMode("passphrase");
 				setPassphrase(unlockPassphrase.trim());
+				setHasEncryptedVault(false);
 				setUnlockStatus("success");
 				setUnlockErrorMessage("");
+				scrubUrlSearchParams();
+
+				// Immediately apply and persist the unlocked configuration in application state
+				onSave(config.currentHost, "passphrase", unlockPassphrase.trim(), restoredHosts);
 			} else {
 				setUnlockStatus("error");
 				setUnlockErrorMessage("Incorrect passphrase or corrupt vault data.");
@@ -263,8 +278,14 @@ export const HostModal: React.FC<HostModalProps> = ({
 
 		// The target active host is the edited host (or activeHostId if different)
 		const targetActive = updatedHosts.find((h) => h.id === editingHostId) || updatedHost;
+		const effectivePassphrase = (passphrase || activePassphrase || "").trim();
 
-		onSave(targetActive, mode, passphrase, updatedHosts);
+		if (mode === "passphrase" && !effectivePassphrase) {
+			alert("Please enter a master passphrase to secure your configuration.");
+			return;
+		}
+
+		onSave(targetActive, mode, effectivePassphrase, updatedHosts);
 		onClose();
 	};
 
@@ -639,7 +660,7 @@ export const HostModal: React.FC<HostModalProps> = ({
 									placeholder="Enter master passphrase for all hosts"
 									value={passphrase}
 									onChange={(e) => setPassphrase(e.target.value)}
-									required
+									required={!activePassphrase}
 								/>
 							</div>
 						)}

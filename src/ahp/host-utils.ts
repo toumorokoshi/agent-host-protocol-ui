@@ -141,3 +141,76 @@ export function formatHostConnectionError(
 		guidance,
 	};
 }
+
+/**
+ * Extracts a HostConfig from URL search parameters, properly separating
+ * query tokens (?tkn= or ?token=) and formatting the WebSocket endpoint.
+ */
+export function parseHostFromUrlParams(searchParams: URLSearchParams, isHttps = false): HostConfig | null {
+	const raw = searchParams.get("host") || searchParams.get("url");
+	if (!raw) return null;
+
+	let cleanUrl = raw.trim();
+	let token = searchParams.get("tkn") || searchParams.get("token") || undefined;
+
+	try {
+		if (cleanUrl.includes("?tkn=") || cleanUrl.includes("?token=") || cleanUrl.includes("&tkn=")) {
+			const temp = cleanUrl.replace(/^(?:wss|ws|https|http):\/\//, "http://");
+			const parsed = new URL(temp);
+			const urlToken = parsed.searchParams.get("tkn") || parsed.searchParams.get("token");
+			if (urlToken && !token) {
+				token = urlToken;
+			}
+			parsed.searchParams.delete("tkn");
+			parsed.searchParams.delete("token");
+			const proto = cleanUrl.startsWith("wss://") || cleanUrl.startsWith("https://") || isHttps ? "wss://" : "ws://";
+			const cleanHost = parsed.host;
+			const cleanPath = parsed.pathname === "/" && !cleanUrl.includes(`${cleanHost}/`) ? "" : parsed.pathname;
+			cleanUrl = `${proto}${cleanHost}${cleanPath}`;
+		}
+	} catch {
+		// ignore URL parsing errors
+	}
+
+	cleanUrl = formatIpv6Url(cleanUrl);
+
+	return {
+		id: "url-host",
+		name: `Host (${cleanUrl})`,
+		url: cleanUrl,
+		token,
+		isDefault: true,
+	};
+}
+
+export interface WindowLocationHistory {
+	location: { href: string };
+	history?: { replaceState: (state: unknown, title: string, url: string) => void };
+}
+
+/**
+ * Removes sensitive connection parameters (?host=, ?url=, ?tkn=, ?token=)
+ * from the browser address bar without reloading the page.
+ */
+export function scrubUrlSearchParams(win?: WindowLocationHistory): void {
+	const currentWindow = win ?? (typeof window !== "undefined" ? window : undefined);
+	if (!currentWindow?.history?.replaceState) return;
+	try {
+		const url = new URL(currentWindow.location.href);
+		let changed = false;
+		for (const key of ["host", "url", "tkn", "token"]) {
+			if (url.searchParams.has(key)) {
+				url.searchParams.delete(key);
+				changed = true;
+			}
+		}
+		if (changed) {
+			const newSearch = url.searchParams.toString();
+			const newUrl = `${url.pathname}${newSearch ? `?${newSearch}` : ""}${url.hash}`;
+			const title = typeof document !== "undefined" ? document.title : "";
+			currentWindow.history.replaceState({}, title, newUrl);
+		}
+	} catch {
+		// ignore URL manipulation errors
+	}
+}

@@ -112,4 +112,38 @@ describe("App Configuration Vault Persistence & Unlock", () => {
 		clearStoredVault();
 		assert.equal(hasStoredVault(), false);
 	});
+
+	it("preserves multiple saved hosts and active host across passphrase unlock", async () => {
+		const host1: HostConfig = {
+			id: "host-1",
+			name: "Workstation Host",
+			url: "ws://192.168.1.50:63877",
+			token: "work-tok-999",
+		};
+		const host2: HostConfig = {
+			id: "host-2",
+			name: "Cloud Server",
+			url: "wss://agent.example.com/ws",
+			token: "cloud-tok-888",
+		};
+
+		const config: AppConfiguration = {
+			version: 1,
+			currentHost: host1,
+			savedHosts: [host1, host2],
+			themePreference: "dark",
+			lastSavedAt: new Date().toISOString(),
+		};
+
+		await saveAppConfiguration(config, "strong-passphrase-123");
+		assert.equal(hasStoredVault(), true);
+
+		const restored = await unlockAppConfiguration("strong-passphrase-123");
+		assert.ok(restored);
+		assert.equal(restored?.currentHost.url, "ws://192.168.1.50:63877");
+		assert.equal(restored?.currentHost.token, "work-tok-999");
+		assert.equal(restored?.savedHosts?.length, 2);
+		assert.equal(restored?.savedHosts?.[1].url, "wss://agent.example.com/ws");
+		assert.equal(restored?.savedHosts?.[1].token, "cloud-tok-888");
+	});
 });

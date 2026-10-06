@@ -1,7 +1,12 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ahpConnection } from "./ahp/connection.ts";
-import { formatHostConnectionError, getDefaultHost } from "./ahp/host-utils.ts";
+import {
+	formatHostConnectionError,
+	getDefaultHost,
+	parseHostFromUrlParams,
+	scrubUrlSearchParams,
+} from "./ahp/host-utils.ts";
 import { createInitialMockSessions, simulateTurnStream } from "./ahp/mock-host.ts";
 import { multiAhp } from "./ahp/multi-connection.ts";
 import { ChatTimeline } from "./components/ChatTimeline.tsx";
@@ -54,6 +59,7 @@ export const App: React.FC = () => {
 	const [currentHost, setCurrentHost] = useState<HostConfig>(getDefaultHost);
 	const [savedHosts, setSavedHosts] = useState<HostConfig[]>(() => [getDefaultHost()]);
 	const activePassphraseRef = useRef<string | null>(null);
+	const hasCheckedUrlRef = useRef<boolean>(false);
 
 	const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
 	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
@@ -93,6 +99,24 @@ export const App: React.FC = () => {
 			await saveAppConfiguration(config, passphrase);
 		},
 		[themePreference],
+	);
+
+	const handleSetTheme = useCallback(
+		(pref: typeof themePreference) => {
+			setTheme(pref);
+			const passphrase = activePassphraseRef.current;
+			if (passphrase) {
+				const config: AppConfiguration = {
+					version: 1,
+					currentHost,
+					savedHosts,
+					themePreference: pref,
+					lastSavedAt: new Date().toISOString(),
+				};
+				saveAppConfiguration(config, passphrase).catch(() => {});
+			}
+		},
+		[setTheme, currentHost, savedHosts],
 	);
 
 	// Initialize vault on startup; if an encrypted vault exists, prompt user to unlock
@@ -683,6 +707,7 @@ export const App: React.FC = () => {
 				setTheme(config.themePreference);
 			}
 			setIsUnlockModalOpen(false);
+			scrubUrlSearchParams();
 
 			// Automatically transition to Live Mode and connect to restored host!
 			setIsMockMode(false);
@@ -772,18 +797,28 @@ export const App: React.FC = () => {
 
 	// Check URL query parameters on startup for pre-configured host (e.g. from CLI runner)
 	useEffect(() => {
+		if (hasCheckedUrlRef.current) return;
+		hasCheckedUrlRef.current = true;
+
+		if (typeof window === "undefined") return;
+
 		try {
 			const params = new URLSearchParams(window.location.search);
-			const hostUrl = params.get("host") || params.get("url");
-			if (hostUrl) {
-				const autoHost: HostConfig = {
-					id: "url-host",
-					name: "URL Host",
-					url: hostUrl,
-					isDefault: true,
-				};
+			const hasUrlParam = params.has("host") || params.has("url");
+			if (!hasUrlParam) return;
+
+			// If an encrypted vault already exists, preserve it and do not overwrite with ephemeral mode
+			if (hasStoredVault()) {
+				scrubUrlSearchParams();
+				return;
+			}
+
+			const isHttps = window.location.protocol === "https:";
+			const autoHost = parseHostFromUrlParams(params, isHttps);
+			if (autoHost) {
 				handleSaveHost(autoHost, "ephemeral");
 			}
+			scrubUrlSearchParams();
 		} catch {
 			// ignore URL parsing errors
 		}
@@ -847,7 +882,7 @@ export const App: React.FC = () => {
 				activeHostName={currentHost.name}
 				themePreference={themePreference}
 				resolvedTheme={resolvedTheme}
-				onSetTheme={setTheme}
+				onSetTheme={handleSetTheme}
 				onOpenHostModal={() => setIsHostModalOpen(true)}
 				onNewSession={() => setIsNewSessionModalOpen(true)}
 				onToggleMockMode={handleToggleMockMode}
@@ -980,6 +1015,8 @@ export const App: React.FC = () => {
 				currentHost={currentHost}
 				savedHosts={savedHosts}
 				isOpen={isHostModalOpen}
+				isVaultUnlocked={Boolean(activePassphraseRef.current)}
+				activePassphrase={activePassphraseRef.current || undefined}
 				onClose={() => setIsHostModalOpen(false)}
 				onSave={handleSaveHost}
 				onDeleteHost={handleDeleteHost}

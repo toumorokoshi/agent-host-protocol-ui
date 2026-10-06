@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatHostConnectionError, formatIpv6Url, getDefaultHost } from "../src/ahp/host-utils.ts";
+import {
+	formatHostConnectionError,
+	formatIpv6Url,
+	getDefaultHost,
+	parseHostFromUrlParams,
+	scrubUrlSearchParams,
+} from "../src/ahp/host-utils.ts";
 
 describe("getDefaultHost", () => {
 	it("returns ws://127.0.0.1:63877 on localhost", () => {
@@ -134,3 +140,54 @@ describe("formatHostConnectionError", () => {
 		assert.equal(diag.guidance, undefined);
 	});
 });
+
+describe("parseHostFromUrlParams", () => {
+	it("returns null when neither host nor url is present", () => {
+		const params = new URLSearchParams("");
+		assert.equal(parseHostFromUrlParams(params), null);
+	});
+
+	it("extracts host and token from host parameter", () => {
+		const params = new URLSearchParams("host=ws://10.0.0.5:63877&token=auth-tok-123");
+		const host = parseHostFromUrlParams(params);
+		assert.ok(host);
+		assert.equal(host?.url, "ws://10.0.0.5:63877");
+		assert.equal(host?.token, "auth-tok-123");
+	});
+
+	it("extracts embedded token from url query string inside the host url", () => {
+		const params = new URLSearchParams("host=ws://127.0.0.1:63877?tkn=embedded-secret");
+		const host = parseHostFromUrlParams(params);
+		assert.ok(host);
+		assert.equal(host?.url, "ws://127.0.0.1:63877");
+		assert.equal(host?.token, "embedded-secret");
+	});
+
+	it("extracts host from url parameter fallback", () => {
+		const params = new URLSearchParams("url=ws://remote-host:8080");
+		const host = parseHostFromUrlParams(params);
+		assert.ok(host);
+		assert.equal(host?.url, "ws://remote-host:8080");
+	});
+});
+
+describe("scrubUrlSearchParams", () => {
+	it("removes sensitive params from window location search", () => {
+		let replacedUrl = "";
+		const mockWindow = {
+			location: { href: "http://localhost:5173/?host=ws://127.0.0.1:63877&tkn=abc&other=123#myhash" },
+			history: {
+				replaceState: (_state: unknown, _title: string, url: string) => {
+					replacedUrl = url;
+				},
+			},
+		};
+
+		scrubUrlSearchParams(mockWindow);
+		assert.ok(!replacedUrl.includes("host="), "host param should be scrubbed");
+		assert.ok(!replacedUrl.includes("tkn="), "tkn param should be scrubbed");
+		assert.ok(replacedUrl.includes("other=123"), "unrelated params should be preserved");
+		assert.ok(replacedUrl.includes("#myhash"), "hash should be preserved");
+	});
+});
+

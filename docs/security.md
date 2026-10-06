@@ -49,6 +49,7 @@ Users can select their preferred privacy mode:
    - The user defines a master passphrase upon first launch.
    - The key is derived via PBKDF2.
    - When the user returns, entering the passphrase unlocks the local registry and cached session history.
+   - Existing encrypted vaults take precedence over ephemeral URL query parameters (`?host=`, `?url=`), preventing accidental deletion of stored vaults when launching via CLI runners.
    - Passphrases and derived keys are never transmitted over the network.
 
 3. **Memory-Only Mode (Zero Disk Persistence):**
@@ -107,6 +108,8 @@ The UI immediately isolates the `tkn` parameter into the encrypted credential va
 ```
 ws://127.0.0.1:63877 [Token Secured]
 ```
+
+Furthermore, sensitive URL parameters (`?host=`, `?url=`, `?tkn=`, `?token=`) are scrubbed from `window.location` via `window.history.replaceState` immediately upon app startup and vault unlock, preventing parameter exposure in browser logs, history, or shoulder-surfing.
 
 ---
 
