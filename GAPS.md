@@ -31,6 +31,8 @@ This document tracks identified gaps, planned milestones, and completed features
   - Formatted parameter viewer.
   - Interactive permission approval bar (`Approve` / `Deny`).
   - Output and result display.
+  - Slim collapsible block design (collapsed by default at ~28px height with argument preview, status pill, and animated chevron toggle).
+- [ ] **Rich Structured Tool Output Renderers:** Specialized renderers for unified diffs, file trees, or JSON/table data inside expanded tool outputs.
 - [x] **Resumable Errors:** Resumable turn error handling with one-click "Resume Turn" action.
 - [ ] **Interactive Input Elicitations Form:** Full multi-page form controls for `ChatInputRequest` question types.
 

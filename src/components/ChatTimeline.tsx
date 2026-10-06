@@ -3,6 +3,7 @@ import { marked } from "marked";
 import type React from "react";
 import { useState } from "react";
 import type { UiTurn } from "../types.ts";
+import { ToolCallItem } from "./ToolCallItem.tsx";
 
 interface ChatTimelineProps {
 	turns: UiTurn[];
@@ -71,57 +72,13 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, o
 							)}
 
 							{/* Tool Calls */}
-							{turn.toolCalls.map((tool) => (
-								<div key={tool.id} className="tool-call-card">
-									<div className="tool-call-header">
-										<div className="tool-name-badge">
-											<span>⚡</span>
-											<span>{tool.name}</span>
-										</div>
-										<span className={`tool-status-pill ${tool.status}`}>{tool.status}</span>
-									</div>
-
-									<div className="tool-call-body">
-										<div style={{ color: "var(--text-muted)", marginBottom: "4px" }}>// Arguments</div>
-										<div>
-											{typeof tool.arguments === "string" ? tool.arguments : JSON.stringify(tool.arguments, null, 2)}
-										</div>
-
-										{tool.result && (
-											<div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid var(--border-subtle)" }}>
-												<div style={{ color: "var(--text-muted)", marginBottom: "4px" }}>// Result</div>
-												<div style={{ color: "var(--text-primary)" }}>{tool.result}</div>
-											</div>
-										)}
-									</div>
-
-									{tool.status === "pending-confirmation" && onConfirmToolCall && (
-										<div className="tool-confirm-bar">
-											<span style={{ fontSize: "12px", color: "var(--color-danger)" }}>
-												This tool requires explicit approval to execute.
-											</span>
-											<div style={{ display: "flex", gap: "8px" }}>
-												<button
-													type="button"
-													className="btn btn-secondary"
-													style={{ padding: "3px 8px", fontSize: "11px" }}
-													onClick={() => onConfirmToolCall(tool.id, false)}
-												>
-													Deny
-												</button>
-												<button
-													type="button"
-													className="btn btn-primary"
-													style={{ padding: "3px 8px", fontSize: "11px" }}
-													onClick={() => onConfirmToolCall(tool.id, true)}
-												>
-													Approve
-												</button>
-											</div>
-										</div>
-									)}
+							{turn.toolCalls.length > 0 && (
+								<div className="tool-calls-container">
+									{turn.toolCalls.map((tool) => (
+										<ToolCallItem key={tool.id} tool={tool} onConfirmToolCall={onConfirmToolCall} />
+									))}
 								</div>
-							))}
+							)}
 
 							{/* Markdown Assistant Text */}
 							{turn.assistantText && (

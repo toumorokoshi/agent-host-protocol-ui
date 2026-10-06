@@ -24,8 +24,9 @@ A fully client-side web interface for services implementing the [Agent Host Prot
   - **Streaming Assistant Responses:** High-speed streaming markdown rendering with code syntax highlighting and copy controls.
   - **Collapsible Reasoning Streams:** Real-time visibility into the agent's chain-of-thought, including elapsed timer and token counts.
   - **Rich Tool Call Lifecycle:**
-    - Visual inspection of tool names, arguments, and execution statuses (`streaming`, `running`, `completed`, `cancelled`).
-    - Tool execution output with unified diff rendering for file edits.
+    - **Slim Collapsible Blocks:** Tool executions render as slim (~28px), compact rows collapsed by default with tool badge, argument preview, and status pill, keeping conversational flow clean.
+    - Click to expand full argument payloads, unified diffs, and execution output.
+    - Visual inspection of tool statuses (`streaming`, `running`, `completed`, `cancelled`).
     - **Interactive Tool Approvals:** Permission prompts for sensitive tool executions with Approve / Reject actions (`chat/toolCallConfirmed`).
   - **Resumable Errors:** Mid-turn recovery support when model servers encounter transient errors, offering one-click "Resume Turn" (`chat/turnResume`).
   - **Interactive Input Elicitations:** Renders forms for agent questions (text, number, boolean, single/multi select choices) with direct submission (`ChatInputRequest`).

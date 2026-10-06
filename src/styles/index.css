@@ -714,21 +714,75 @@ body {
 
 /* ─── Tool Calls ───────────────────────────────────────────────────────── */
 
+.tool-calls-container {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
 .tool-call-card {
 	background-color: var(--bg-surface);
 	border: 1px solid var(--border-default);
-	border-radius: var(--radius-md);
+	border-radius: var(--radius-sm);
 	overflow: hidden;
 	font-size: 12px;
+	transition: border-color 0.15s ease;
+}
+
+.tool-call-card:hover {
+	border-color: var(--border-default-hover, #4e4e52);
 }
 
 .tool-call-header {
-	padding: 8px 12px;
+	padding: 4px 10px;
+	min-height: 28px;
+	width: 100%;
+	border: none;
+	font: inherit;
+	color: inherit;
+	text-align: left;
 	background-color: var(--bg-surface-elevated);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	font-weight: 500;
+	cursor: pointer;
+	user-select: none;
+	gap: 8px;
+	transition: background-color 0.15s ease;
+}
+
+.tool-call-header:hover {
+	background-color: var(--bg-surface-hover);
+}
+
+.tool-call-header:focus-visible {
+	outline: 1px solid var(--border-focused);
+	outline-offset: -1px;
+}
+
+.tool-call-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex: 1;
+}
+
+.tool-chevron {
+	color: var(--text-muted);
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition:
+		transform 0.15s ease,
+		color 0.15s ease;
+}
+
+.tool-chevron.expanded {
+	transform: rotate(90deg);
+	color: var(--text-primary);
 }
 
 .tool-name-badge {
@@ -737,14 +791,32 @@ body {
 	gap: 6px;
 	font-family: var(--font-mono);
 	font-weight: 600;
+	font-size: 11.5px;
 	color: var(--tool-name-color, var(--text-accent));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tool-args-preview {
+	font-family: var(--font-mono);
+	font-size: 11px;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-left: 2px;
+	max-width: 320px;
 }
 
 .tool-status-pill {
-	padding: 2px 8px;
+	padding: 1px 7px;
 	border-radius: var(--radius-full);
-	font-size: 11px;
+	font-size: 10.5px;
+	font-weight: 500;
 	text-transform: capitalize;
+	flex-shrink: 0;
+	line-height: 1.4;
 }
 
 .tool-status-pill.completed {
@@ -762,25 +834,37 @@ body {
 	color: var(--pending-pill-color);
 }
 
+.tool-status-pill.cancelled {
+	background-color: rgba(255, 255, 255, 0.08);
+	color: var(--text-muted);
+}
+
+.tool-status-pill.error {
+	background-color: var(--color-danger-light);
+	color: var(--color-danger);
+}
+
 .tool-call-body {
-	padding: 10px 12px;
+	padding: 8px 12px;
 	font-family: var(--font-mono);
-	font-size: 12px;
+	font-size: 11.5px;
 	color: var(--text-secondary);
 	border-top: 1px solid var(--border-subtle);
 	background-color: var(--bg-surface);
 	white-space: pre-wrap;
-	max-height: 200px;
+	max-height: 220px;
 	overflow-y: auto;
+	line-height: 1.5;
 }
 
 .tool-confirm-bar {
-	padding: 8px 12px;
+	padding: 6px 10px;
 	background-color: rgba(239, 68, 68, 0.1);
 	border-top: 1px solid rgba(239, 68, 68, 0.3);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	font-size: 11.5px;
 }
 
 /* ─── Resumable Error ──────────────────────────────────────────────────── */

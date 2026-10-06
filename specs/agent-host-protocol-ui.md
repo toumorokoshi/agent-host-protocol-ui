@@ -57,7 +57,8 @@ The VS Code Agents View represents Microsoft's architecture for decoupling agent
   - **Markdown Text:** Streaming text token rendering with syntax highlighting, copy blocks, and line numbering.
   - **Reasoning / Thinking Parts:** Dedicated collapsible accordion displaying model chain-of-thought, live elapsed duration timer, and token consumption.
   - **Tool Calls:**
-    - Tool identifier, call ID, and formatted parameter payload.
+    - Tool identifier, call ID, formatted parameter payload, and concise argument preview.
+    - **Slim & Collapsible by Default:** Tool call blocks render as very slim (28px height) compact bars collapsed by default, featuring a tool icon (`⚡`), tool name, arguments preview in muted text, and execution status pill. Clicking toggles full parameter payloads and execution results with an animated chevron.
     - Lifecycle status: `streaming`, `pending-confirmation`, `running`, `completed`, `cancelled`, `auth-required`.
     - **Interactive Tool Approvals:** When a tool call requires user consent (`pending-confirmation`), present Accept / Reject / Always Allow options, dispatching `chat/toolCallConfirmed`.
     - Tool results display: plain text output, structured data, file diffs (`FileEdit`), or terminal output links.
