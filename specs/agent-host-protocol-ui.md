@@ -45,6 +45,7 @@ The VS Code Agents View represents Microsoft's architecture for decoupling agent
   - **Rename Session:** Inline or action-triggered title update (`session/titleChanged`), syncing with the agent host.
   - **Archive / Unarchive:** Mark sessions as archived (`session/isArchivedChanged`).
   - **Dispose Session:** Clean up empty/scratch sessions (`disposeSession`).
+  - **Non-Terminating Session Switching & Background Execution:** Switching away from a session with an active turn in progress does not cancel or terminate the turn. The in-flight turn continues executing in the background, keeping live WebSocket subscriptions open for ongoing streaming updates and updating session history upon completion. Sessions actively executing turns in the background display a pulsing "Running" status badge in the Live Sessions sidebar.
 
 ### 2.3 Conversational Timeline & Turns
 - **Turn-based Architecture:** Every interaction is structured as a `Turn` containing an initiating `Message` and an array of `ResponsePart` objects.
@@ -199,7 +200,8 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
 - **Search & Filter:** Instant text filtering over titles, session IDs, and working directory paths.
 - **Section 1: Active / Live Sessions:**
   - Live TUI sessions bridged from terminal `pi` processes or currently active RPC sessions.
-  - Pulsing indicator for actively generating turns.
+  - Any session actively executing turns in the background dynamically displays in the Live section with a pulsing "Running" indicator badge.
+  - When background turns complete, sessions transition cleanly back to Recent Sessions unless flagged as persistent live processes.
 - **Section 2: Saved / Recent Sessions:**
   - Paginated list populated via `listSessions`.
   - Display of relative time (e.g., "5m ago", "Yesterday").

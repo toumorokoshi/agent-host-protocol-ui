@@ -18,6 +18,8 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Working Directory Full-Path Tooltip:** Hovering over the working directory folder badge in Live and Recent sessions (as well as the active session header and inspector) displays the full absolute directory path in a portal-rendered, viewport-clamped tooltip. Safely handles trailing slashes without falling back to "workspace".
 - [x] **Multi-AHP Host & Session Selection:** Support multiple AHP host connections. The New Session dialog allows selecting the target AHP host, dynamically populating models and working directories for that specific host, and adding new hosts inline. Sidebar sessions display host badges when multiple hosts are active, and all host and session configurations are encrypted together under the same master passphrase.
 - [x] **Session Actions:** Rename session with inline prompt and dispose empty/unwanted sessions via remote `disposeSession` RPC.
+- [x] **Non-Terminating Session Switching & Background Execution:** Switching between sessions no longer prompts to cancel or aborts in-flight turns. Background sessions maintain their WebSocket subscriptions and execution state, updating turn logs silently. Sessions running in the background dynamically appear in the Live Sessions sidebar with a pulsing "Running" status badge.
+- [ ] **Background Session Completion Notifications:** Optional browser desktop notification or visual banner alerting the user when an in-flight background session completes while viewing a different session.
 
 ## 3. Conversational Timeline & Streaming
 - [x] **Turn Timeline:** Completed turns and active streaming turn rendering.

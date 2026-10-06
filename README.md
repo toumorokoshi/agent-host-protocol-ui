@@ -18,6 +18,7 @@ A fully client-side web interface for services implementing the [Agent Host Prot
   - Search and filter by session title, working directory, and active status.
   - Create new sessions with working directory selection and model/reasoning effort configuration (`resolveSessionConfig`).
   - Session rename (`session/titleChanged`), archive toggle, and disposal of empty sessions.
+  - Seamless non-terminating session switching: in-flight turns keep running in the background with live streaming updates and visual sidebar status indicators.
 
 - 💬 **Full-Fidelity Conversational Turns:**
   - **Streaming Assistant Responses:** High-speed streaming markdown rendering with code syntax highlighting and copy controls.

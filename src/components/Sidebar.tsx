@@ -31,8 +31,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 			s.workingDirectory.toLowerCase().includes(search.toLowerCase()),
 	);
 
-	const liveSessions = filteredSessions.filter((s) => s.isLive && !s.isArchived);
-	const pastSessions = filteredSessions.filter((s) => !s.isLive && !s.isArchived);
+	const isSessionRunning = (s: UiSession) => Boolean(s.activeTurn);
+	const liveSessions = filteredSessions.filter((s) => (s.isLive || isSessionRunning(s)) && !s.isArchived);
+	const pastSessions = filteredSessions.filter((s) => !s.isLive && !isSessionRunning(s) && !s.isArchived);
 
 	const handleSessionSelect = (id: string) => {
 		onSelectSession(id);
@@ -78,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 										<span className="session-title" title={session.title}>
 											{session.title}
 										</span>
-										<span className="live-badge">Live</span>
+										<span className="live-badge">{session.activeTurn ? "Running" : "Live"}</span>
 									</div>
 									<div className="session-meta">
 										{session.hostName && (

@@ -59,7 +59,6 @@ export const App: React.FC = () => {
 	const [isMockMode, setIsMockMode] = useState<boolean>(true); // Starts in Demo Mode until host configured
 	const [sessions, setSessions] = useState<UiSession[]>(createInitialMockSessions());
 	const [activeSessionId, setActiveSessionId] = useState<string | null>(sessions[0]?.id || null);
-	const [activeTurn, setActiveTurn] = useState<UiTurn | undefined>(undefined);
 	const [isHostModalOpen, setIsHostModalOpen] = useState(false);
 	const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
 	const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
@@ -72,8 +71,12 @@ export const App: React.FC = () => {
 	const [remoteDefaultDir, setRemoteDefaultDir] = useState<string>("");
 	const [remoteModels, setRemoteModels] = useState<ModelInfo[]>([]);
 
-	const cancelMockStreamRef = useRef<(() => void) | null>(null);
-	const unsubscribeLiveSessionRef = useRef<(() => void) | null>(null);
+	const mockStreamsRef = useRef<Map<string, () => void>>(new Map());
+	const sessionSubscriptionsRef = useRef<Map<string, () => void>>(new Map());
+	const activeSessionIdRef = useRef<string | null>(activeSessionId);
+	activeSessionIdRef.current = activeSessionId;
+	const sessionsRef = useRef<UiSession[]>(sessions);
+	sessionsRef.current = sessions;
 
 	// Helper to persist all configured hosts and settings behind the common passphrase
 	const persistConfiguration = useCallback(
@@ -135,7 +138,21 @@ export const App: React.FC = () => {
 				}
 			}
 
-			setSessions(allSessions);
+			setSessions((prev) => {
+				const prevMap = new Map(prev.map((s) => [s.id, s]));
+				return allSessions.map((s) => {
+					const existing = prevMap.get(s.id);
+					if (existing) {
+						return {
+							...s,
+							turns: existing.turns.length > 0 ? existing.turns : s.turns,
+							activeTurn: existing.activeTurn ?? s.activeTurn,
+							queuedMessages: existing.queuedMessages.length > 0 ? existing.queuedMessages : s.queuedMessages,
+						};
+					}
+					return s;
+				});
+			});
 			if (allSessions.length > 0) {
 				setActiveSessionId((prev) => {
 					if (prev && allSessions.some((s) => s.id === prev)) return prev;
@@ -148,60 +165,99 @@ export const App: React.FC = () => {
 		[currentHost, savedHosts],
 	);
 
-	// Subscribe to the active session when it changes in Live Mode
+	// Subscribe to active and in-flight sessions in Live Mode
 	useEffect(() => {
-		if (isMockMode || !activeSessionId || connectionStatus !== "connected") {
+		if (isMockMode || connectionStatus !== "connected") {
+			for (const unsub of sessionSubscriptionsRef.current.values()) {
+				unsub();
+			}
+			sessionSubscriptionsRef.current.clear();
 			return;
 		}
 
-		if (unsubscribeLiveSessionRef.current) {
-			unsubscribeLiveSessionRef.current();
-			unsubscribeLiveSessionRef.current = null;
+		if (!activeSessionId) return;
+
+		// Clean up subscriptions for sessions that are:
+		// 1. Not the currently active session, AND
+		// 2. Not currently running an active turn
+		for (const [sessId, unsub] of sessionSubscriptionsRef.current.entries()) {
+			if (sessId !== activeSessionId) {
+				const sess = sessionsRef.current.find((s) => s.id === sessId);
+				if (!sess?.activeTurn) {
+					unsub();
+					sessionSubscriptionsRef.current.delete(sessId);
+				}
+			}
 		}
 
-		let isSubscribed = true;
+		// Subscribe to activeSessionId if not already subscribed
+		if (!sessionSubscriptionsRef.current.has(activeSessionId)) {
+			const isSubscribed = true;
+			const targetId = activeSessionId;
 
-		ahpConnection
-			.subscribeSession(activeSessionId, (data) => {
-				if (!isSubscribed) return;
+			ahpConnection
+				.subscribeSession(targetId, (data) => {
+					if (!isSubscribed) return;
 
-				if (data.turns !== undefined) {
-					setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, turns: data.turns || [] } : s)));
-				}
-				if (data.activeTurn !== undefined) {
-					setActiveTurn(data.activeTurn);
-				}
-				if (data.queuedMessages !== undefined) {
 					setSessions((prev) =>
-						prev.map((s) => (s.id === activeSessionId ? { ...s, queuedMessages: data.queuedMessages || [] } : s)),
+						prev.map((s) => {
+							if (s.id !== targetId) return s;
+							const updated = { ...s };
+							if (data.turns !== undefined) {
+								updated.turns = data.turns;
+							}
+							if ("activeTurn" in data) {
+								updated.activeTurn = data.activeTurn;
+							}
+							if (data.queuedMessages !== undefined) {
+								updated.queuedMessages = data.queuedMessages;
+							}
+							if (data.title !== undefined) {
+								updated.title = data.title;
+							}
+							return updated;
+						}),
 					);
-				}
-			})
-			.then((unsub) => {
-				if (isSubscribed) {
-					unsubscribeLiveSessionRef.current = unsub;
-				} else {
-					unsub();
-				}
-			});
 
-		return () => {
-			isSubscribed = false;
-			if (unsubscribeLiveSessionRef.current) {
-				unsubscribeLiveSessionRef.current();
-				unsubscribeLiveSessionRef.current = null;
-			}
-		};
+					// If this turn completed on a background session (not currently active),
+					// clean up its subscription now that it has finished running.
+					if ("activeTurn" in data && !data.activeTurn && activeSessionIdRef.current !== targetId) {
+						const currentUnsub = sessionSubscriptionsRef.current.get(targetId);
+						if (currentUnsub) {
+							currentUnsub();
+							sessionSubscriptionsRef.current.delete(targetId);
+						}
+					}
+				})
+				.then((unsub) => {
+					if (isSubscribed) {
+						sessionSubscriptionsRef.current.set(targetId, unsub);
+					} else {
+						unsub();
+					}
+				});
+		}
 	}, [isMockMode, activeSessionId, connectionStatus]);
 
+	// Clean up all subscriptions and mock streams on unmount
+	useEffect(() => {
+		return () => {
+			for (const unsub of sessionSubscriptionsRef.current.values()) {
+				unsub();
+			}
+			sessionSubscriptionsRef.current.clear();
+			for (const cancelMock of mockStreamsRef.current.values()) {
+				cancelMock();
+			}
+			mockStreamsRef.current.clear();
+		};
+	}, []);
+
 	const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+	const activeTurn = activeSession?.activeTurn;
 
 	const handleSelectSession = async (id: string) => {
-		if (activeTurn) {
-			if (!confirm("A turn is currently streaming. Switch session and cancel it?")) return;
-			handleCancelTurn();
-		}
-
+		// When switching sessions, keep in-flight sessions running in the background without terminating them
 		const targetSession = sessions.find((s) => s.id === id);
 		if (targetSession?.hostId && targetSession.hostId !== currentHost.id) {
 			const targetHost = savedHosts.find((h) => h.id === targetSession.hostId);
@@ -217,6 +273,17 @@ export const App: React.FC = () => {
 	};
 
 	const handleDisposeSession = async (id: string) => {
+		const unsub = sessionSubscriptionsRef.current.get(id);
+		if (unsub) {
+			unsub();
+			sessionSubscriptionsRef.current.delete(id);
+		}
+		const cancelMock = mockStreamsRef.current.get(id);
+		if (cancelMock) {
+			cancelMock();
+			mockStreamsRef.current.delete(id);
+		}
+
 		if (!isMockMode && connectionStatus === "connected") {
 			try {
 				await ahpConnection.disposeSession(id);
@@ -333,7 +400,6 @@ export const App: React.FC = () => {
 				setIsMockMode(false);
 				setSessions([]);
 				setActiveSessionId(null);
-				setActiveTurn(undefined);
 
 				const res = await multiAhp.connectHost(newHost);
 				if (!res.success) {
@@ -397,52 +463,67 @@ export const App: React.FC = () => {
 		[savedHosts, currentHost, isMockMode, reloadLiveSessions, persistConfiguration],
 	);
 
-	const handleSendMessage = async (text: string, isSteering: boolean) => {
-		if (!activeSession) return;
+	const handleSendMessageForSession = async (sessionId: string, text: string, isSteering: boolean) => {
+		const targetSession = sessions.find((s) => s.id === sessionId);
+		if (!targetSession) return;
 
 		if (!isMockMode && connectionStatus === "connected") {
-			if (activeTurn && !isSteering) {
-				await ahpConnection.queueMessage(activeSession.id, text);
+			if (targetSession.activeTurn && !isSteering) {
+				await ahpConnection.queueMessage(sessionId, text);
 				setSessions((prev) =>
-					prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
+					prev.map((s) => (s.id === sessionId ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
 				);
 				return;
 			}
-			if (isSteering && activeTurn) {
-				await ahpConnection.steerTurn(activeSession.id, text);
+			if (isSteering && targetSession.activeTurn) {
+				await ahpConnection.steerTurn(sessionId, text);
 				return;
 			}
 			const turnId = randomUUID();
 			// Optimistically set activeTurn so the prompt immediately renders in the timeline
-			setActiveTurn({
-				id: turnId,
-				userPrompt: text,
-				startedAt: new Date().toISOString(),
-				model: activeSession.model,
-				assistantText: "",
-				toolCalls: [],
-				state: "streaming",
-			});
-			await ahpConnection.sendMessage(activeSession.id, text, activeSession.model, turnId);
+			setSessions((prev) =>
+				prev.map((s) =>
+					s.id === sessionId
+						? {
+								...s,
+								activeTurn: {
+									id: turnId,
+									userPrompt: text,
+									startedAt: new Date().toISOString(),
+									model: targetSession.model,
+									assistantText: "",
+									toolCalls: [],
+									state: "streaming",
+								},
+							}
+						: s,
+				),
+			);
+			await ahpConnection.sendMessage(sessionId, text, targetSession.model, turnId);
 			return;
 		}
 
 		// Mock Mode Execution
-		if (activeTurn && !isSteering) {
+		if (targetSession.activeTurn && !isSteering) {
 			setSessions((prev) =>
-				prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
+				prev.map((s) => (s.id === sessionId ? { ...s, queuedMessages: [...s.queuedMessages, text] } : s)),
 			);
 			return;
 		}
 
-		if (isSteering && activeTurn) {
-			setActiveTurn((prev) =>
-				prev
-					? {
-							...prev,
-							assistantText: `${prev.assistantText}\n\n*[Steering guidance received: "${text}"]*\n`,
-						}
-					: undefined,
+		if (isSteering && targetSession.activeTurn) {
+			setSessions((prev) =>
+				prev.map((s) =>
+					s.id === sessionId && s.activeTurn
+						? {
+								...s,
+								activeTurn: {
+									...s.activeTurn,
+									assistantText: `${s.activeTurn.assistantText}\n\n*[Steering guidance received: "${text}"]*\n`,
+								},
+							}
+						: s,
+				),
 			);
 			return;
 		}
@@ -452,46 +533,57 @@ export const App: React.FC = () => {
 			id: turnId,
 			userPrompt: text,
 			startedAt: new Date().toISOString(),
-			model: activeSession.model,
+			model: targetSession.model,
 			assistantText: "",
 			toolCalls: [],
 			state: "streaming",
 		};
-		setActiveTurn(initialTurn);
+		setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, activeTurn: initialTurn } : s)));
 
-		cancelMockStreamRef.current = simulateTurnStream(
+		const cancelFn = simulateTurnStream(
 			text,
-			activeSession.model,
-			activeSession.thinkingLevel,
+			targetSession.model,
+			targetSession.thinkingLevel,
 			(delta) => {
-				setActiveTurn((prev) => (prev ? { ...prev, ...delta } : undefined));
+				setSessions((prev) =>
+					prev.map((s) =>
+						s.id === sessionId && s.activeTurn ? { ...s, activeTurn: { ...s.activeTurn, ...delta } } : s,
+					),
+				);
 			},
 			() => {
-				setActiveTurn((finalTurn) => {
-					if (finalTurn) {
-						setSessions((prev) =>
-							prev.map((s) =>
-								s.id === activeSession.id
-									? {
-											...s,
-											turns: [...s.turns, { ...finalTurn, state: "complete" }],
-											modifiedAt: new Date().toISOString(),
-										}
-									: s,
-							),
-						);
-					}
-					return undefined;
-				});
+				mockStreamsRef.current.delete(sessionId);
+				setSessions((prev) =>
+					prev.map((s) => {
+						if (s.id !== sessionId) return s;
+						const completedTurn: UiTurn = s.activeTurn
+							? { ...s.activeTurn, state: "complete" }
+							: {
+									id: turnId,
+									userPrompt: text,
+									startedAt: new Date().toISOString(),
+									model: s.model,
+									assistantText: "",
+									toolCalls: [],
+									state: "complete",
+								};
+						return {
+							...s,
+							turns: [...s.turns, completedTurn],
+							activeTurn: undefined,
+							modifiedAt: new Date().toISOString(),
+						};
+					}),
+				);
 
 				// Process next queued message if any
 				setTimeout(() => {
 					setSessions((prev) => {
-						const current = prev.find((s) => s.id === activeSession.id);
+						const current = prev.find((s) => s.id === sessionId);
 						if (current && current.queuedMessages.length > 0) {
 							const [nextPrompt, ...remaining] = current.queuedMessages;
-							const updated = prev.map((s) => (s.id === activeSession.id ? { ...s, queuedMessages: remaining } : s));
-							setTimeout(() => handleSendMessage(nextPrompt, false), 50);
+							const updated = prev.map((s) => (s.id === sessionId ? { ...s, queuedMessages: remaining } : s));
+							setTimeout(() => handleSendMessageForSession(sessionId, nextPrompt, false), 50);
 							return updated;
 						}
 						return prev;
@@ -499,61 +591,79 @@ export const App: React.FC = () => {
 				}, 500);
 			},
 		);
+		mockStreamsRef.current.set(sessionId, cancelFn);
+	};
+
+	const handleSendMessage = async (text: string, isSteering: boolean) => {
+		if (!activeSession) return;
+		await handleSendMessageForSession(activeSession.id, text, isSteering);
 	};
 
 	const handleCancelTurn = async () => {
-		const targetSessionId = activeSession?.id || activeSessionId;
-		const turnToCancel = activeTurn;
+		if (!activeSession) return;
+		const targetSessionId = activeSession.id;
+		const turnToCancel = activeSession.activeTurn;
 
 		// Immediately update local UI so the stop action feels instant and responsive
-		if (turnToCancel && targetSessionId) {
+		if (turnToCancel) {
 			const cancelled: UiTurn = { ...turnToCancel, state: "cancelled" as const };
-			setSessions((prev) => prev.map((s) => (s.id === targetSessionId ? { ...s, turns: [...s.turns, cancelled] } : s)));
-			setActiveTurn(undefined);
+			setSessions((prev) =>
+				prev.map((s) =>
+					s.id === targetSessionId ? { ...s, turns: [...s.turns, cancelled], activeTurn: undefined } : s,
+				),
+			);
 		}
 
-		if (!isMockMode && connectionStatus === "connected" && targetSessionId) {
+		if (!isMockMode && connectionStatus === "connected") {
 			await ahpConnection.cancelTurn(targetSessionId, turnToCancel?.id);
 			return;
 		}
 
-		if (cancelMockStreamRef.current) {
-			cancelMockStreamRef.current();
-			cancelMockStreamRef.current = null;
+		const cancelMock = mockStreamsRef.current.get(targetSessionId);
+		if (cancelMock) {
+			cancelMock();
+			mockStreamsRef.current.delete(targetSessionId);
 		}
 	};
 
 	const handleConfirmToolCall = async (toolCallId: string, approved: boolean) => {
-		if (!isMockMode && connectionStatus === "connected" && activeSession) {
+		if (!activeSession) return;
+		if (!isMockMode && connectionStatus === "connected") {
 			await ahpConnection.confirmToolCall(activeSession.id, toolCallId, approved);
 			return;
 		}
 
-		if (!activeTurn) return;
-		setActiveTurn((prev) => {
-			if (!prev) return undefined;
-			return {
-				...prev,
-				toolCalls: prev.toolCalls.map((tc) =>
-					tc.id === toolCallId
-						? {
-								...tc,
-								status: approved ? "running" : "cancelled",
-								result: approved ? "Tool approved by user." : "Tool rejected by user.",
-							}
-						: tc,
-				),
-			};
-		});
+		if (!activeSession.activeTurn) return;
+		setSessions((prev) =>
+			prev.map((s) => {
+				if (s.id !== activeSession.id || !s.activeTurn) return s;
+				return {
+					...s,
+					activeTurn: {
+						...s.activeTurn,
+						toolCalls: s.activeTurn.toolCalls.map((tc) =>
+							tc.id === toolCallId
+								? {
+										...tc,
+										status: approved ? "running" : "cancelled",
+										result: approved ? "Tool approved by user." : "Tool rejected by user.",
+									}
+								: tc,
+						),
+					},
+				};
+			}),
+		);
 	};
 
 	const handleResumeTurn = () => {
 		if (!activeSession) return;
 		const lastTurn = activeSession.turns[activeSession.turns.length - 1];
 		if (lastTurn?.resumableError) {
-			const repaired = { ...lastTurn, resumableError: undefined, state: "streaming" as const };
-			setActiveTurn(repaired);
-			setSessions((prev) => prev.map((s) => (s.id === activeSession.id ? { ...s, turns: s.turns.slice(0, -1) } : s)));
+			const repaired: UiTurn = { ...lastTurn, resumableError: undefined, state: "streaming" as const };
+			setSessions((prev) =>
+				prev.map((s) => (s.id === activeSession.id ? { ...s, activeTurn: repaired, turns: s.turns.slice(0, -1) } : s)),
+			);
 		}
 	};
 
@@ -578,7 +688,6 @@ export const App: React.FC = () => {
 			setIsMockMode(false);
 			setSessions([]);
 			setActiveSessionId(null);
-			setActiveTurn(undefined);
 
 			const result = await ahpConnection.connect(config.currentHost);
 			if (result.success) {
@@ -648,7 +757,6 @@ export const App: React.FC = () => {
 			setIsMockMode(false);
 			setSessions([]);
 			setActiveSessionId(null);
-			setActiveTurn(undefined);
 
 			const result = await ahpConnection.connect(host);
 			if (result.success) {
@@ -687,7 +795,6 @@ export const App: React.FC = () => {
 			setIsMockMode(false);
 			setSessions([]);
 			setActiveSessionId(null);
-			setActiveTurn(undefined);
 
 			const result = await ahpConnection.connect(currentHost);
 			if (result.success) {
@@ -704,7 +811,6 @@ export const App: React.FC = () => {
 			const mock = createInitialMockSessions();
 			setSessions(mock);
 			setActiveSessionId(mock[0]?.id || null);
-			setActiveTurn(undefined);
 		}
 	};
 
