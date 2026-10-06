@@ -73,6 +73,8 @@ This document tracks identified gaps, planned milestones, and completed features
 - [x] **Mobile Inspector Drawer:** Off-canvas slide-over drawer for skills, queue, and diagnostics on small viewports.
 - [x] **Touch-Friendly Controls:** Minimum 44px touch targets, mobile-optimized header buttons, and 16px font sizing preventing iOS Safari auto-zoom on input focus.
 - [x] **Mobile Host Configuration Access:** WebSocket host configuration moved behind a settings (cog) icon in the header action cluster with an overlaid connection status dot, replacing the inline host pill that was squeezed under the theme toggles on narrow viewports.
+- [x] **Mobile Timeline Scrolling & Flexbox Containment:** Fixed unstyled `.app-layout` container by aligning `.workspace-layout` and `.app-layout` selectors with explicit `min-height: 0` flex constraints, `-webkit-overflow-scrolling: touch`, and `overscroll-behavior-y: contain`. Resolves mobile scroll lock where timeline expansion exceeded viewport and clipped against `#root` overflow.
+- [x] **Auto-Scroll to Bottom & Sticky Jump-Down Button:** Automatic scrolling on new turns and live token streams, user scroll position protection, floating "Scroll to bottom" button when scrolled up, and `visualViewport` resize listener for mobile virtual keyboard open/close.
 - [ ] **Swipe Gesture Support:** Swipe from left screen edge to open sidebar drawer and swipe right to dismiss.
 
 

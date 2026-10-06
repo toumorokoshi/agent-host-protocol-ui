@@ -233,6 +233,12 @@ The layout conforms to a modern three-column / docked IDE aesthetic:
     - [Submit Answers] and [Skip] action triggers.
   - **Resumable Error Banner:**
     - When a model server fails mid-turn with `resumable: true`, render a yellow/red warning banner with explanation and a "Resume Turn" action button (`chat/turnResume`).
+- **Scroll Management & Mobile Responsiveness:**
+  - **Auto-Scroll to Bottom:** Automatically scrolls to the bottom on session load and during live turn streaming, keeping the latest tokens and tool executions in view.
+  - **Scroll Position Protection:** If the user scrolls up (>60px from bottom) to inspect earlier history, auto-scroll suspends to prevent disorienting content jumps during active generation.
+  - **Floating Scroll-To-Bottom Button:** When scrolled up, a sticky floating button appears above the composer (`↓ Scroll to bottom`) enabling 1-click smooth scroll to the latest messages.
+  - **Mobile Virtual Keyboard Resilience:** Listens to `visualViewport` resize events to keep the bottom of the timeline pinned above the software keyboard when the composer is focused.
+  - **Touch Scrolling & Flexbox Constraints:** Both `.workspace-layout` and `.app-layout` along with `.chat-view` and `.chat-timeline` enforce `min-height: 0`, `-webkit-overflow-scrolling: touch`, and `overscroll-behavior-y: contain`, ensuring touch swiping never locks up on mobile browsers.
 
 ### 4.4 Chat Composer & Control Center
 - **Textarea:** Expandable text editor with markdown/code syntax convenience.

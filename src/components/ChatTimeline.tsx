@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import type React from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiTurn } from "../types.ts";
 import { ToolCallItem } from "./ToolCallItem.tsx";
 
@@ -14,6 +14,9 @@ interface ChatTimelineProps {
 
 export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, onConfirmToolCall, onResumeTurn }) => {
 	const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({});
+	const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+	const timelineRef = useRef<HTMLDivElement>(null);
+	const isUserScrolledUpRef = useRef(false);
 
 	const toggleThinking = (turnId: string) => {
 		setOpenThinking((prev) => ({ ...prev, [turnId]: !prev[turnId] }));
@@ -27,8 +30,58 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, o
 
 	const allTurns = activeTurn ? [...turns, activeTurn] : turns;
 
+	const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+		const el = timelineRef.current;
+		if (!el) return;
+		el.scrollTo({ top: el.scrollHeight, behavior });
+		isUserScrolledUpRef.current = false;
+		setShowScrollBottomBtn(false);
+	}, []);
+
+	const handleScroll = useCallback(() => {
+		const el = timelineRef.current;
+		if (!el) return;
+		const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+		const isScrolledUp = distanceFromBottom > 60;
+		isUserScrolledUpRef.current = isScrolledUp;
+		setShowScrollBottomBtn(isScrolledUp);
+	}, []);
+
+	// Initial mount / session load: jump to bottom
+	useEffect(() => {
+		const el = timelineRef.current;
+		if (el) {
+			el.scrollTop = el.scrollHeight;
+		}
+	}, []);
+
+	// Stream updates / new turns: auto-scroll to bottom unless user explicitly scrolled up
+	useEffect(() => {
+		// Track updates from turns and activeTurn stream
+		if (turns || activeTurn) {
+			if (!isUserScrolledUpRef.current) {
+				const el = timelineRef.current;
+				if (el) {
+					el.scrollTop = el.scrollHeight;
+				}
+			}
+		}
+	}, [turns, activeTurn]);
+
+	// Visual viewport resize listener for mobile virtual keyboard open/close
+	useEffect(() => {
+		if (typeof window === "undefined" || !window.visualViewport) return;
+		const handleViewportResize = () => {
+			if (!isUserScrolledUpRef.current && timelineRef.current) {
+				timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+			}
+		};
+		window.visualViewport.addEventListener("resize", handleViewportResize);
+		return () => window.visualViewport?.removeEventListener("resize", handleViewportResize);
+	}, []);
+
 	return (
-		<div className="chat-timeline">
+		<div className="chat-timeline" ref={timelineRef} onScroll={handleScroll}>
 			{allTurns.length === 0 && (
 				<div style={{ margin: "auto", textAlign: "center", color: "var(--text-muted)" }}>
 					<h3 style={{ color: "var(--text-primary)", marginBottom: "8px" }}>Ready to Assist</h3>
@@ -109,6 +162,21 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ turns, activeTurn, o
 					</div>
 				);
 			})}
+
+			{showScrollBottomBtn && (
+				<button
+					type="button"
+					className="scroll-to-bottom-btn"
+					onClick={() => scrollToBottom("smooth")}
+					title="Scroll to latest messages"
+					aria-label="Scroll to bottom"
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+						<polyline points="6 9 12 15 18 9" />
+					</svg>
+					<span>Scroll to bottom</span>
+				</button>
+			)}
 		</div>
 	);
 };

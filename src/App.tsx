@@ -854,7 +854,7 @@ export const App: React.FC = () => {
 				onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
 			/>
 
-			<div className="app-layout">
+			<div className="workspace-layout app-layout">
 				<Sidebar
 					sessions={sessions}
 					activeSessionId={activeSessionId}
@@ -930,6 +930,7 @@ export const App: React.FC = () => {
 							</div>
 
 							<ChatTimeline
+								key={activeSession.id}
 								turns={activeSession.turns}
 								activeTurn={activeTurn}
 								onConfirmToolCall={handleConfirmToolCall}
