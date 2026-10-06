@@ -116,6 +116,18 @@ npx @toumorokoshi/agent-host-protocol-ui --bind 0.0.0.0 --port 8080 --no-open
 >    ```
 > 2. `agent-host-protocol-ui` automatically derives its default WebSocket host from `window.location.hostname` (e.g. `ws://192.168.1.50:63877`), ensuring remote devices connect to your workstation rather than their own loopback (`127.0.0.1`).
 > 3. If launching the CLI with `--host 0.0.0.0` and `--agent-host`, the CLI automatically rewrites `127.0.0.1` to each network interface IP in the printed Network URLs for seamless QR-code / mobile opening.
+>
+> **Tailscale (`*.ts.net`) & HTTPS Mixed Content Notice:**
+> When opening the UI over HTTPS (such as `https://<node>.ts.net` via Tailscale Serve or Tailscale HTTPS), modern browsers block unencrypted `ws://` connections (*"Failed to construct 'WebSocket': An insecure WebSocket connection may not be initiated from a page loaded over HTTPS"*).
+>
+> To connect successfully with Tailscale:
+> - **Option 1 (Recommended / Zero-Config):** Access the UI over plain HTTP using your Tailscale IP (e.g. `http://100.x.y.z:5173`) instead of your `https://*.ts.net` MagicDNS domain. Over HTTP, unencrypted `ws://` connections (`ws://100.x.y.z:63877`) are fully permitted, and Tailscale WireGuard encrypts all traffic end-to-end at the network layer.
+> - **Option 2 (CLI Proxy):** When using the CLI runner with Tailscale Serve on port 5173, the CLI automatically reverse-proxies WebSocket upgrades on `/ws` to the agent host. Connect to `wss://<node>.ts.net/ws`.
+> - **Option 3 (Tailscale Serve TLS Proxy):** Proxy the agent host with TLS via Tailscale Serve:
+>   ```sh
+>   tailscale serve --bg https:8443 / http://127.0.0.1:63877
+>   ```
+>   Then connect in the UI using `wss://<node>.ts.net:8443`.
 
 ---
 

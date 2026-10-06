@@ -63,7 +63,7 @@ Browsers expose the full Web Crypto API (`crypto.subtle`), `crypto.randomUUID()`
 - UUID generation falls back to `crypto.getRandomValues()` (available in all contexts) to assemble spec-compliant v4 UUIDs for client IDs, session URIs, and turn IDs.
 - Browser password manager integration (`PasswordCredential`) is bypassed gracefully.
 - **Loopback Resolution:** On client devices (e.g. phones), `127.0.0.1` targets the client device itself rather than the host workstation. The UI dynamically detects non-localhost origins and defaults to connecting to the workstation IP/hostname (`ws://${window.location.hostname}:63877`), with contextual diagnostics if loopback is targeted.
-- **Mixed Content Enforcement:** If the UI is loaded over HTTPS, browsers prohibit unencrypted `ws://` connections. AHP host connections must use `wss://` or the UI must be served over HTTP / localhost.
+- **Mixed Content Enforcement:** If the UI is loaded over HTTPS (including Tailscale `*.ts.net` MagicDNS domains), browsers strictly prohibit unencrypted `ws://` connections. AHP host connections must use `wss://` (via Tailscale Serve or a reverse proxy), the CLI proxy route (`wss://.../ws`), or the UI must be accessed over plain HTTP via Tailscale IP (`http://100.x.y.z:5173`) where `ws://` is permitted.
 
 Use `localhost` or HTTPS to re-enable encrypted-at-rest storage and native `crypto.randomUUID()`.
 
@@ -96,7 +96,7 @@ When an agent or tool initiates an elicitation questionnaire (`ChatInputRequest`
 ### Transport Security Rules
 - **Loopback Connections (`127.0.0.1`, `localhost`, `[::1]`):** Plaintext `ws://` is permitted exclusively for local loopback development.
 - **Remote Hosts:** Any remote IP or hostname **must** use secure WebSockets (`wss://`).
-- **Mixed-Content Protection:** When the UI is served over HTTPS, the browser automatically blocks unencrypted `ws://` connections to remote hosts.
+- **Mixed-Content Protection:** When the UI is served over HTTPS (such as `*.ts.net`), the browser automatically blocks unencrypted `ws://` connections to remote hosts. Connections must use `wss://` (with TLS proxying via Tailscale Serve or Caddy/Nginx) or the UI should be accessed over plain HTTP via Tailscale IP (`100.x.y.z`).
 
 ### Token Sanitization
 AHP daemon connections often include token parameters, such as:

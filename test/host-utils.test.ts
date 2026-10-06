@@ -57,6 +57,19 @@ describe("formatHostConnectionError", () => {
 		assert.ok(diag.guidance?.includes("Mixed Content Notice"));
 	});
 
+	it("diagnoses Tailscale mixed content on *.ts.net with actionable resolution steps", () => {
+		const diag = formatHostConnectionError(
+			"ws://my-box.tailnet.ts.net:63877",
+			"Failed to construct 'WebSocket': An insecure WebSocket connection may not be initiated from a page loaded over HTTPS.",
+			{ hostname: "my-box.tailnet.ts.net", protocol: "https:" },
+		);
+		assert.ok(diag.guidance?.includes("Tailscale Mixed Content Notice"));
+		assert.ok(diag.guidance?.includes("http://100.x.y.z:5173"));
+		assert.ok(diag.guidance?.includes("tailscale serve"));
+		assert.ok(diag.guidance?.includes("wss://my-box.tailnet.ts.net:8443"));
+		assert.ok(diag.guidance?.includes("wss://my-box.tailnet.ts.net/ws"));
+	});
+
 	it("diagnoses network IP target with general host advice", () => {
 		const diag = formatHostConnectionError(
 			"ws://10.0.0.148:63877",

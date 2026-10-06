@@ -52,6 +52,9 @@ export function formatHostConnectionError(
 	const currentHostname = location?.hostname || "";
 	const isHttps = location?.protocol === "https:";
 	const isWsTarget = targetUrl.startsWith("ws://");
+	const isMixedContent =
+		(isHttps && isWsTarget) ||
+		Boolean(rawError && /insecure websocket|mixed content|page loaded over https/i.test(rawError));
 
 	const isNonLocalOrigin =
 		Boolean(currentHostname) &&
@@ -60,12 +63,32 @@ export function formatHostConnectionError(
 		currentHostname !== "::1";
 
 	const isLoopbackTarget = targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost");
+	const isTailscale =
+		currentHostname.includes(".ts.net") ||
+		targetUrl.includes(".ts.net") ||
+		currentHostname.startsWith("100.") ||
+		targetUrl.includes("100.");
 
 	let guidance: string | undefined;
 
-	if (isHttps && isWsTarget) {
-		guidance =
-			"Mixed Content Notice: This UI is served over HTTPS, which prevents modern browsers from connecting to unencrypted ws:// endpoints. Connect via wss:// or serve the UI over HTTP.";
+	if (isMixedContent) {
+		if (isTailscale) {
+			const tsHost = currentHostname || "your-device.ts.net";
+			guidance =
+				"Tailscale Mixed Content Notice: Browsers block unencrypted ws:// connections when this UI is loaded over HTTPS (*.ts.net).\n\n" +
+				"To resolve this, choose one of these solutions:\n" +
+				"1. Easiest: Access this UI over plain HTTP via your Tailscale IP (e.g. http://100.x.y.z:5173) instead of https://*.ts.net. Tailscale WireGuard encrypts all traffic end-to-end, and HTTP pages allow ws:// connections.\n" +
+				`2. Tailscale Serve WSS: Configure Tailscale Serve to terminate TLS for your AHP host:\n` +
+				`   tailscale serve --bg https:8443 / http://127.0.0.1:63877\n` +
+				`   Then connect to: wss://${tsHost}:8443\n` +
+				`3. CLI Proxy: If serving via the CLI runner, connect to wss://${tsHost}/ws.`;
+		} else {
+			guidance =
+				"Mixed Content Notice: This UI is served over HTTPS, which prevents modern browsers from connecting to unencrypted ws:// endpoints.\n\n" +
+				"To resolve this:\n" +
+				"1. Connect via wss:// backed by a TLS reverse proxy (e.g. Tailscale Serve, Caddy, or Nginx).\n" +
+				"2. Or serve and access the UI over plain HTTP, where ws:// is permitted.";
+		}
 	} else if (isNonLocalOrigin && isLoopbackTarget) {
 		guidance =
 			`Loopback Address Notice: You are accessing this UI from a network address (${currentHostname}), but the target URL (${targetUrl}) points to loopback (127.0.0.1). ` +

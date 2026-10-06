@@ -112,11 +112,26 @@ export const HostModal: React.FC<HostModalProps> = ({
 		setToken(host.token || "");
 	};
 
+	const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+	const currentHostname = typeof window !== "undefined" ? window.location.hostname : "";
+	const isNonLocalOrigin =
+		Boolean(currentHostname) &&
+		currentHostname !== "localhost" &&
+		currentHostname !== "127.0.0.1" &&
+		currentHostname !== "::1";
+	const isLoopbackTarget = url.includes("127.0.0.1") || url.includes("localhost");
+	const isMixedContentTarget = isHttps && url.trim().startsWith("ws://");
+	const isTailscaleHost =
+		currentHostname.includes(".ts.net") ||
+		url.includes(".ts.net") ||
+		currentHostname.startsWith("100.") ||
+		url.includes("100.");
+
 	const startAddingNewHost = () => {
 		const newId = `host-${randomUUID().slice(0, 8)}`;
 		setEditingHostId(newId);
 		setName("");
-		setUrl("ws://");
+		setUrl(isHttps ? "wss://" : "ws://");
 		setToken("");
 	};
 
@@ -159,27 +174,19 @@ export const HostModal: React.FC<HostModalProps> = ({
 		}
 	};
 
-	const currentHostname = typeof window !== "undefined" ? window.location.hostname : "";
-	const isNonLocalOrigin =
-		Boolean(currentHostname) &&
-		currentHostname !== "localhost" &&
-		currentHostname !== "127.0.0.1" &&
-		currentHostname !== "::1";
-	const isLoopbackTarget = url.includes("127.0.0.1") || url.includes("localhost");
-
 	if (!isOpen) return null;
 
 	const handleUrlChange = (val: string) => {
 		try {
 			if (val.includes("?tkn=") || val.includes("?token=") || val.includes("&tkn=")) {
-				const isSecure = val.startsWith("wss://");
-				const tempUrl = val.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+				const isSecure = val.startsWith("wss://") || val.startsWith("https://");
+				const tempUrl = val.replace(/^(?:wss|ws|https|http):\/\//, "http://");
 				const parsed = new URL(tempUrl);
 				const tkn = parsed.searchParams.get("tkn") || parsed.searchParams.get("token");
 				if (tkn) {
 					parsed.searchParams.delete("tkn");
 					parsed.searchParams.delete("token");
-					const cleanProto = isSecure ? "wss://" : "ws://";
+					const cleanProto = isSecure || isHttps ? "wss://" : "ws://";
 					const cleanHost = parsed.host;
 					const cleanPath = parsed.pathname === "/" && !val.includes(`${cleanHost}/`) ? "" : parsed.pathname;
 					const cleanUrl = `${cleanProto}${cleanHost}${cleanPath}`;
@@ -197,7 +204,23 @@ export const HostModal: React.FC<HostModalProps> = ({
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 
-		const cleanUrl = url.trim();
+		let cleanUrl = url.trim();
+		if (cleanUrl.startsWith("http://")) {
+			cleanUrl = `${isHttps ? "wss://" : "ws://"}${cleanUrl.slice(7)}`;
+		} else if (cleanUrl.startsWith("https://")) {
+			cleanUrl = `wss://${cleanUrl.slice(8)}`;
+		} else if (!cleanUrl.startsWith("ws://") && !cleanUrl.startsWith("wss://") && cleanUrl.length > 0) {
+			cleanUrl = `${isHttps ? "wss://" : "ws://"}${cleanUrl}`;
+		}
+
+		if (isHttps && cleanUrl.startsWith("ws://")) {
+			alert(
+				"Mixed Content Notice: Cannot connect to an unencrypted ws:// endpoint from a page loaded over HTTPS.\n\n" +
+					"Please switch to wss:// or access this UI over plain HTTP (e.g. via Tailscale IP http://100.x.y.z:5173).",
+			);
+			return;
+		}
+
 		const cleanToken = token.trim();
 		const cleanName = name.trim() || `Host (${cleanUrl})`;
 
@@ -460,12 +483,74 @@ export const HostModal: React.FC<HostModalProps> = ({
 								type="text"
 								autoComplete="username"
 								className="form-input"
-								placeholder="ws://127.0.0.1:63877"
+								placeholder={isHttps ? "wss://127.0.0.1:63877" : "ws://127.0.0.1:63877"}
 								value={url}
 								onChange={(e) => handleUrlChange(e.target.value)}
 								required
 							/>
-							{isNonLocalOrigin && isLoopbackTarget && (
+							{isMixedContentTarget && (
+								<div
+									style={{
+										marginTop: "8px",
+										padding: "8px 10px",
+										borderRadius: "6px",
+										background: "rgba(239, 68, 68, 0.1)",
+										border: "1px solid rgba(239, 68, 68, 0.3)",
+										fontSize: "12px",
+										lineHeight: "1.45",
+									}}
+								>
+									<div style={{ color: "#ef4444", fontWeight: 600, marginBottom: "4px" }}>
+										⚠️ Mixed Content Warning (HTTPS Origin)
+									</div>
+									<div style={{ marginBottom: "6px" }}>
+										This UI is loaded over HTTPS. Web browsers strictly block unencrypted <code>ws://</code> connections
+										from secure pages.
+									</div>
+									<div
+										style={{
+											display: "flex",
+											gap: "8px",
+											alignItems: "center",
+											flexWrap: "wrap",
+											marginBottom: isTailscaleHost ? "6px" : "0",
+										}}
+									>
+										<button
+											type="button"
+											className="btn btn-secondary"
+											style={{ padding: "3px 8px", fontSize: "11px" }}
+											onClick={() => setUrl((prev) => prev.replace(/^ws:\/\//, "wss://"))}
+										>
+											Switch to wss://
+										</button>
+										{isTailscaleHost && (
+											<button
+												type="button"
+												className="btn btn-secondary"
+												style={{ padding: "3px 8px", fontSize: "11px" }}
+												onClick={() => setUrl(`wss://${currentHostname || "node.ts.net"}/ws`)}
+											>
+												Use CLI Proxy (wss://.../ws)
+											</button>
+										)}
+									</div>
+									{isTailscaleHost && (
+										<div
+											style={{
+												fontSize: "11px",
+												color: "var(--color-text-secondary, #94a3b8)",
+												marginTop: "4px",
+											}}
+										>
+											<strong>Tailscale Tip:</strong> Access this UI via plain HTTP on your Tailscale IP (e.g.{" "}
+											<code>http://100.x.y.z:5173</code>) to allow <code>ws://</code> without TLS certificates, or proxy
+											via Tailscale Serve (<code>tailscale serve --bg https:8443 / http://127.0.0.1:63877</code>).
+										</div>
+									)}
+								</div>
+							)}
+							{isNonLocalOrigin && isLoopbackTarget && !isMixedContentTarget && (
 								<div
 									style={{
 										marginTop: "6px",
@@ -484,11 +569,12 @@ export const HostModal: React.FC<HostModalProps> = ({
 										className="btn btn-secondary"
 										style={{ padding: "1px 4px", fontSize: "10px", margin: "1px 0" }}
 										onClick={() => {
-											const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
+											const proto = isHttps ? "wss://" : "ws://";
 											setUrl(`${proto}${currentHostname}:63877`);
 										}}
 									>
-										ws://{currentHostname}:63877
+										{isHttps ? "wss://" : "ws://"}
+										{currentHostname}:63877
 									</button>
 								</div>
 							)}

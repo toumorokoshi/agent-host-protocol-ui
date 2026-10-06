@@ -90,6 +90,15 @@ export class AhpConnection {
 				fullUrl = `${fullUrl}${separator}tkn=${encodeURIComponent(host.token)}`;
 			}
 
+			// Insecure ws:// connections are forbidden by browsers on pages loaded over HTTPS
+			if (typeof window !== "undefined" && window.location?.protocol === "https:" && fullUrl.startsWith("ws://")) {
+				const msg =
+					"An insecure WebSocket connection (ws://) may not be initiated from a page loaded over HTTPS (Mixed Content). Use wss:// or access the UI over HTTP.";
+				console.warn(msg);
+				this.setStatus("error");
+				return { success: false, error: msg };
+			}
+
 			this.transport = await WebSocketTransport.connect(fullUrl);
 			this.client = new AhpClient(this.transport);
 			this.client.connect();

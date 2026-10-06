@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import http from "node:http";
+import net from "node:net";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -198,6 +199,54 @@ describe("CLI External Serving & Hostname Binding", () => {
 		const resShort = await execCli("-v");
 		assert.equal(resShort.code, 0);
 		assert.equal(resShort.out, "0.2.0");
+	});
+
+	it("proxies WebSocket upgrade requests on /ws to target agent host", async () => {
+		const backendPort = 63899;
+		const cliPort = 5216;
+		let backendConnected = false;
+
+		// Mock backend TCP server listening on loopback
+		const mockBackend = net.createServer((sock) => {
+			backendConnected = true;
+			sock.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
+			sock.end();
+		});
+
+		await new Promise((resolve) => mockBackend.listen(backendPort, "127.0.0.1", resolve));
+
+		const { proc } = await startCli([
+			"--port",
+			String(cliPort),
+			"--agent-host",
+			`ws://127.0.0.1:${backendPort}`,
+			"--no-open",
+		]);
+
+		try {
+			await new Promise((resolve, reject) => {
+				const req = http.request({
+					hostname: "127.0.0.1",
+					port: cliPort,
+					path: "/ws",
+					headers: {
+						Connection: "Upgrade",
+						Upgrade: "websocket",
+					},
+				});
+				req.on("upgrade", (res, socket) => {
+					socket.destroy();
+					resolve();
+				});
+				req.on("error", reject);
+				req.end();
+			});
+
+			assert.ok(backendConnected, "Mock backend should have received the upgrade proxy connection");
+		} finally {
+			proc.kill("SIGTERM");
+			mockBackend.close();
+		}
 	});
 });
 

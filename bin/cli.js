@@ -3,6 +3,7 @@
 import { exec } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -170,6 +171,60 @@ function openBrowser(url) {
 	exec(cmd, () => {});
 }
 
+server.on("upgrade", (req, clientSocket, head) => {
+	const urlPath = req.url ? req.url.split("?")[0] : "/";
+	if (urlPath === "/ws" || urlPath === "/ahp" || urlPath.startsWith("/ws/") || urlPath.startsWith("/ahp/")) {
+		let targetHost = "127.0.0.1";
+		let targetPort = 63877;
+		if (agentHostParam) {
+			try {
+				const temp = agentHostParam.replace(/^ws:\/\//, "http://").replace(/^wss:\/\//, "https://");
+				const parsed = new URL(temp);
+				targetHost = parsed.hostname;
+				targetPort = Number.parseInt(parsed.port, 10) || 63877;
+			} catch {}
+		}
+
+		// Security: Only proxy to local loopback targets
+		const isLoopback =
+			targetHost === "127.0.0.1" || targetHost === "localhost" || targetHost === "::1";
+		if (!isLoopback) {
+			clientSocket.destroy();
+			return;
+		}
+
+		const targetSocket = net.connect(targetPort, targetHost, () => {
+			const subPath = req.url.replace(/^\/(?:ws|ahp)/, "") || "/";
+			targetSocket.write(`${req.method} ${subPath} HTTP/1.1\r\n`);
+			for (let i = 0; i < req.rawHeaders.length; i += 2) {
+				const headerName = req.rawHeaders[i];
+				const headerVal = req.rawHeaders[i + 1];
+				if (headerName.toLowerCase() === "host") {
+					targetSocket.write(`Host: ${targetHost}:${targetPort}\r\n`);
+				} else {
+					targetSocket.write(`${headerName}: ${headerVal}\r\n`);
+				}
+			}
+			targetSocket.write("\r\n");
+			if (head && head.length > 0) {
+				targetSocket.write(head);
+			}
+			targetSocket.pipe(clientSocket);
+			clientSocket.pipe(targetSocket);
+		});
+
+		targetSocket.on("error", () => {
+			clientSocket.destroy();
+		});
+
+		clientSocket.on("error", () => {
+			targetSocket.destroy();
+		});
+	} else {
+		clientSocket.destroy();
+	}
+});
+
 server.on("error", (err) => {
 	if (err && typeof err === "object" && "code" in err && err.code === "EADDRINUSE") {
 		console.log(`Port ${port} in use, trying ${port + 1}...`);
@@ -209,7 +264,11 @@ server.listen(port, listenHost, () => {
 		console.log(`│                                                        │
 │   Tip: When connecting from another device, ensure     │
 │   your AHP host is listening on 0.0.0.0                │
-│   (e.g., pi-agent-host-protocol --host 0.0.0.0).       │`);
+│   (e.g., pi-agent-host-protocol --host 0.0.0.0).       │
+│                                                        │
+│   Tailscale (*.ts.net) Tip: Access over plain HTTP     │
+│   (http://100.x.y.z:${port}) to allow ws://, or proxy    │
+│   via wss://<node>.ts.net/ws                           │`);
 	} else if (isLocal) {
 		console.log(`│   > Local:   ${displayLocalUrl.padEnd(42)}│`);
 	} else {

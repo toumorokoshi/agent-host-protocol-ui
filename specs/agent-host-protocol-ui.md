@@ -139,6 +139,8 @@ const initResult = await client.initialize({
 #### Dynamic Host Resolution for LAN & Network Access
 When the client UI is accessed from a remote device over a LAN address or domain (e.g. `http://192.168.1.50:5173`), hardcoding `127.0.0.1` as the default WebSocket target results in connection failure because loopback resolves on the client device itself. The UI dynamically detects non-localhost origins via `getDefaultHost(window.location)` and targets the workstation's host address (e.g. `ws://192.168.1.50:63877`), providing contextual diagnostics if loopback is targeted or if the AHP server must be configured with `--host 0.0.0.0`.
 
+When the UI is accessed over HTTPS (e.g. Tailscale `https://<device>.ts.net`), browsers strictly enforce mixed-content policies and reject `ws://` connections. The UI provides automatic protocol selection (`wss://`), in-modal warnings with one-click conversion, Tailscale-specific resolution guidance (using plain HTTP via Tailscale IP `http://100.x.y.z:5173` or Tailscale Serve TLS proxies), and built-in CLI reverse-proxying via `/ws`.
+
 ### 3.2 State Synchronization & Mirroring
 The UI leverages `AhpStateMirror` to maintain an authoritative, reactive local replica of the host state:
 1. `ahp-root://`: Provides `agents`, `terminals`, `activeSessions`, `config`.
@@ -297,7 +299,7 @@ Because user interactions with AI agents often involve proprietary codebases, co
 1. **Transport Layer Security (TLS/WSS):**
    - Non-local connections (remote servers, cloud endpoints, LAN hosts) **must** utilize `wss://` (WebSocket Secure).
    - Insecure `ws://` connections are restricted strictly to loopback addresses (`127.0.0.1`, `localhost`, and `[::1]`).
-   - If the UI is hosted on an `https://` origin, the browser's native mixed-content policy prevents unencrypted `ws://` connections to remote IPs, protecting against eavesdropping and MITM tampering.
+   - If the UI is hosted on an `https://` origin (including Tailscale MagicDNS `*.ts.net`), the browser's native mixed-content policy prevents unencrypted `ws://` connections to remote IPs, protecting against eavesdropping and MITM tampering. Users are guided to connect via `wss://`, use Tailscale Serve TLS proxies, the CLI proxy endpoint (`/ws`), or access the UI over plain HTTP via Tailscale IP (`http://100.x.y.z:5173`).
 
 2. **Origin Validation & CSRF/WebSocket Hijacking Protection:**
    - Client sends standard `Origin` headers during WebSocket handshakes.
